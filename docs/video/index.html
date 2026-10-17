@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #dfe6fb; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+      .bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
+
+      .win { position: absolute; border-radius: 14px; overflow: hidden; background: #fff;
+             box-shadow: 0 28px 70px rgba(30, 30, 60, .28), 0 0 0 1px rgba(0, 0, 0, .12); }
+      .tb { height: 34px; background: #2c2c2f; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+            color: #b8b8bd; font-size: 14px; font-weight: 600; }
+      .tb i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+      .tb .r { background: #ff5f57; } .tb .y { background: #febc2e; } .tb .g { background: #28c840; }
+      .tb span { margin-left: 10px; }
+
+      .term { background: #15161a; }
+      .term .body { padding: 26px 30px; font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 22px;
+                    line-height: 1.55; color: #e4e6eb; }
+      .term .dim { color: #858a95; }
+      .term .acc { color: #8ab4ff; }
+      .term .ok { color: #7ee2a8; }
+      .term .err { color: #ff8f8f; }
+      .term .path { color: #b9d0ff; }
+      .term .gap { margin-top: 18px; }
+      .caret { display: inline-block; width: 12px; height: 26px; margin-left: 2px; vertical-align: -5px; background: #e4e6eb; }
+
+      .panel { position: absolute; filter: drop-shadow(0 30px 60px rgba(20, 20, 50, .35)); }
+      .press { position: absolute; border-radius: 18px; background: rgba(255, 255, 255, .55); opacity: 0; }
+
+      .cap { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); display: flex; align-items: center;
+             gap: 16px; height: 68px; padding: 0 28px 0 14px; border-radius: 34px; white-space: nowrap;
+             background: rgba(22, 22, 28, .82); color: #fff; font-size: 28px; font-weight: 600; letter-spacing: -.01em;
+             box-shadow: 0 10px 30px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .12); opacity: 0; }
+      .keys { display: flex; gap: 7px; }
+      kbd { font-family: inherit; min-width: 44px; height: 44px; padding: 0 11px; border-radius: 10px; display: inline-flex;
+            align-items: center; justify-content: center; font-size: 23px; font-weight: 600; color: #fff;
+            background: rgba(255, 255, 255, .16); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .18); }
+
+      .sel { position: absolute; border: 1px solid rgba(255, 255, 255, .95); box-shadow: 0 0 0 4000px rgba(0, 0, 0, .4); opacity: 0; }
+      .sizelabel { position: absolute; padding: 5px 9px; border-radius: 6px; background: rgba(0, 0, 0, .72); color: #fff;
+                   font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0; }
+      .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+      .cursor { position: absolute; left: 0; top: 0; width: 30px; height: 30px; opacity: 0; }
+
+      .title { position: absolute; left: 0; right: 0; top: 340px; text-align: center; color: #15161c; }
+      .title h1 { font-size: 120px; font-weight: 700; letter-spacing: -.045em; }
+      .flow { display: flex; justify-content: center; align-items: center; gap: 22px; margin-top: 52px; }
+      .chip { display: flex; align-items: center; gap: 14px; padding: 14px 24px 14px 14px; border-radius: 20px;
+              background: rgba(255, 255, 255, .6); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), 0 10px 30px rgba(60, 60, 120, .12);
+              font-size: 30px; font-weight: 600; color: #20222c; }
+      .chip kbd { color: #20222c; background: rgba(255, 255, 255, .95); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12), inset 0 0 0 1px rgba(0, 0, 0, .08); }
+      .flow .to { font-size: 40px; font-weight: 600; color: #4a4d5c; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="21" data-width="1920" data-height="1080">
+
+      <div id="scene" class="clip" data-start="0" data-duration="21" data-track-index="0">
+        <div class="bg" style="background-image:url(assets/wallpaper.jpg)"></div>
+        <div id="browser" class="win" style="left:48px;top:236px;width:980px;height:617px">
+          <div class="tb"><i class="r"></i><i class="y"></i><i class="g"></i><span>Driftwood · Deployments</span></div>
+          <img src="assets/dashboard.png" style="display:block;width:980px;height:583px" alt="">
+        </div>
+        <div id="term" class="win term" style="left:1064px;top:236px;width:808px;height:617px">
+          <div class="tb"><i class="r"></i><i class="y"></i><i class="g"></i><span>agent · ~/driftwood</span></div>
+          <div class="body">
+            <div class="dim">~/driftwood $ agent</div>
+            <div class="dim">Ready. Ask anything about this repo.</div>
+            <div class="gap"><span class="acc">›</span> why is the deploy failing? <span id="tp" class="path" style="display:none">~/Library/Caches/Screengrab/screenshot-20261017-184233.png</span><span id="caret" class="caret"></span></div>
+            <div id="ta" class="gap" style="opacity:0"><span class="ok">●</span> Read screenshot-20261017-184233.png</div>
+            <div id="tb" class="gap" style="opacity:0">The deploy fails because PricingClient gets <span class="err">401 Unauthorized</span> from the pricing API (GET /v2/prices).</div>
+          </div>
+        </div>
+        <div id="sel" class="sel" style="left:48px;top:270px;width:0;height:0"></div>
+        <div id="size" class="sizelabel" style="left:930px;top:862px">980 × 583</div>
+        <div id="flash" class="flash"></div>
+        <div id="pv" class="panel" style="left:434px;top:177px;width:1053px;height:726px;opacity:0">
+          <img src="assets/preview-0.png" width="1053" height="726" alt="">
+          <div id="press" class="press" style="left:198px;top:676px;width:176px;height:36px"></div>
+        </div>
+      </div>
+
+      <div id="end" class="clip" data-start="0" data-duration="21" data-track-index="1" style="opacity:0">
+        <div class="bg" style="background-image:url(assets/wallpaper.jpg)"></div>
+        <div class="title">
+          <h1>Screengrab</h1>
+          <div class="flow">
+            <div class="chip"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>2</kbd></span>Capture</div>
+            <span class="to">→</span>
+            <div class="chip"><span class="keys"><kbd>⌘</kbd><kbd>C</kbd></span>Copy Path</div>
+            <span class="to">→</span>
+            <div class="chip"><span class="keys"><kbd>⌘</kbd><kbd>V</kbd></span>Paste</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="overlay" class="clip" data-start="0" data-duration="21" data-track-index="2" style="pointer-events:none">
+        <div id="c1" class="cap"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>2</kbd></span>Select an area</div>
+        <div id="c2" class="cap"><span class="keys"><kbd>⌘</kbd><kbd>C</kbd></span>Copy Path</div>
+        <div id="c3" class="cap"><span class="keys"><kbd>⌘</kbd><kbd>V</kbd></span>Paste it into your agent</div>
+        <svg id="cross" class="cursor" viewBox="0 0 28 28"><g stroke="#fff" stroke-width="3.2"><path d="M14 1v26M1 14h26"/></g><g stroke="#111" stroke-width="1.4"><path d="M14 1v26M1 14h26"/></g></svg>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const E = "power2.out", IO = "power2.inOut";
+      const C = 15;
+
+      const cap = (id, t, d) => {
+        tl.fromTo(id, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.25, ease: E }, t);
+        tl.to(id, { opacity: 0, y: -10, duration: 0.2, ease: "power1.in" }, t + d);
+      };
+      const keys = (id, t) => tl.to(`${id} kbd`, { scale: 0.86, duration: 0.07, yoyo: true, repeat: 1, stagger: 0.04 }, t);
+      const cross = (from, to, t, d) => tl.fromTo("#cross", { x: from[0] - C, y: from[1] - C }, { x: to[0] - C, y: to[1] - C, duration: d, ease: IO }, t);
+
+      const blink = (from, to) => { for (let t = from + 0.5; t < to; t += 0.5) tl.set("#caret", { opacity: Math.round(t * 2) % 2 ? 0 : 1 }, t); };
+
+      blink(0, 9.8);
+
+      cap("#c1", 1.5, 3.8);
+      keys("#c1", 2.3);
+      tl.set(["#sel", "#cross"], { opacity: 1 }, 2.5);
+      cross([560, 560], [48, 270], 2.5, 0.9);
+      tl.to("#sel", { width: 980, height: 583, duration: 1.4, ease: IO }, 3.6);
+      cross([48, 270], [1028, 853], 3.6, 1.4);
+      tl.set("#size", { opacity: 1 }, 4.85);
+      tl.set(["#sel", "#size", "#cross"], { opacity: 0 }, 5.2);
+      tl.fromTo("#flash", { opacity: 0.5 }, { opacity: 0, duration: 0.35, ease: "power1.out", immediateRender: false }, 5.2);
+      tl.fromTo("#pv", { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.4)" }, 5.25);
+
+      cap("#c2", 7.0, 1.6);
+      keys("#c2", 7.85);
+      tl.to("#press", { opacity: 1, duration: 0.08 }, 7.95);
+      tl.to("#pv", { opacity: 0, scale: 0.98, duration: 0.15, ease: "power1.in" }, 8.2);
+
+      cap("#c3", 8.9, 3.3);
+      keys("#c3", 9.7);
+      tl.set("#tp", { display: "inline" }, 9.8);
+      tl.set("#caret", { opacity: 1 }, 9.8);
+      tl.set("#caret", { opacity: 0 }, 11.3);
+      tl.fromTo("#ta", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 11.6);
+      tl.fromTo("#tb", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4, ease: E }, 12.6);
+
+      tl.to("#end", { opacity: 1, duration: 0.5, ease: "power1.inOut" }, 15.9);
+      tl.fromTo(".title", { y: 18 }, { y: 0, duration: 0.7, ease: E }, 15.9);
+      tl.fromTo("#end .flow > *", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.15, ease: E }, 16.1);
+      tl.set("#tp", { display: "none" }, 17.0);
+      tl.set(["#ta", "#tb"], { opacity: 0 }, 17.0);
+      tl.set("#caret", { opacity: 1 }, 17.0);
+      tl.set("#press", { opacity: 0 }, 17.0);
+      blink(17.0, 21);
+      tl.to("#end", { opacity: 0, duration: 0.7, ease: "power1.inOut" }, 19.6);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
