@@ -18,7 +18,12 @@ Requires macOS 26 (Tahoe) or later. The release is a universal binary for Apple 
 brew install --cask FlorianRiquelme/tap/screengrab
 ```
 
-Screengrab then appears in the menu bar. The first capture asks for Screen Recording permission.
+Then set it up once:
+
+1. Open Screengrab from `/Applications`, or run `open -a Screengrab`. It has no Dock icon and appears in the menu bar.
+2. Press **Cmd+Shift+2**. macOS asks for Screen Recording permission. Grant it in System Settings.
+3. If captures still fail after that, quit Screengrab from the menu bar and open it again.
+4. To have it start with your Mac, choose **Launch at Login** in its menu.
 
 The app is not notarized by Apple, because that needs a paid developer account. The cask removes the quarantine flag after install so macOS opens it without complaint. If you download the zip from [Releases](https://github.com/FlorianRiquelme/screengrab/releases) instead, remove the flag yourself:
 
