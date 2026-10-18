@@ -69,7 +69,11 @@ struct Release: Equatable {
 @MainActor
 final class Updater {
     enum State {
-        case upToDate, available(Release), installing(Release)
+        case upToDate, available(Release)
+        /// Brew downloads it, then it waits until the user has nothing on screen that a quit would cut short.
+        case installing(Release)
+        /// Brew is replacing the app and quits it any moment, so nothing new may start.
+        case restarting(Release)
         /// The in-place install did not take, so Update opens the release page instead.
         case failed(Release)
     }
@@ -99,11 +103,24 @@ final class Updater {
         switch state {
         case .upToDate: nil
         case .available(let r), .failed(let r): "Update to \(r.version)…"
-        case .installing(let r): "Updating to \(r.version)…"
+        case .installing(let r), .restarting(let r): "Updating to \(r.version)…"
         }
     }
 
-    var isInstalling: Bool { if case .installing = state { true } else { false } }
+    var isInstalling: Bool {
+        switch state {
+        case .installing, .restarting: true
+        default: false
+        }
+    }
+
+    var isRestarting: Bool { if case .restarting = state { true } else { false } }
+
+    /// For a capture or recording asked for while brew is about to quit the app.
+    func explainRestart() {
+        guard case .restarting(let r) = state else { return }
+        notice("Updating to \(r.version). Screengrab reopens in a moment.", focus: true)
+    }
 
     func start() {
         guard let running else { return }
@@ -152,7 +169,7 @@ final class Updater {
             return
         }
         switch state {
-        case .installing: return
+        case .installing, .restarting: return
         case .failed(let r) where r == release: return
         default: state = .available(release)
         }
@@ -180,13 +197,38 @@ final class Updater {
         }
     }
 
+    private static var log: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Screengrab/update.log")
+    }
+
     private func install(_ release: Release, brew: URL, prompted: Bool) {
-        guard let running else { return }
         state = .installing(release)
-        UserDefaults.standard.set(running.description, forKey: Self.updatedFromKey)
-        let log = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Screengrab/update.log")
         do {
-            let p = try Self.upgradeProcess(brew: brew, app: InstallKind.appPath, log: log)
+            let p = try Self.brewProcess(Self.fetchScript, brew: brew, app: InstallKind.appPath, log: Self.log)
+            p.terminationHandler = { p in
+                let downloaded = p.terminationStatus == 0
+                Task { @MainActor in
+                    if downloaded { self.restartWhenIdle(release, brew: brew, prompted: prompted) } else { self.installFailed(release, prompted: prompted) }
+                }
+            }
+            try p.run()
+            upgrade = p
+        } catch {
+            installFailed(release, prompted: prompted)
+        }
+    }
+
+    /// The upgrade quits the app, so it starts only once no recording, capture or preview is open.
+    private func restartWhenIdle(_ release: Release, brew: URL, prompted: Bool) {
+        guard let running else { return }
+        guard isIdle() else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.restartWhenIdle(release, brew: brew, prompted: prompted) }
+            return
+        }
+        state = .restarting(release)
+        UserDefaults.standard.set(running.description, forKey: Self.updatedFromKey)
+        do {
+            let p = try Self.brewProcess(Self.upgradeScript, brew: brew, app: InstallKind.appPath, log: Self.log)
             // A successful upgrade quits this app first, so seeing the process end means the update did not take.
             p.terminationHandler = { _ in
                 Task { @MainActor in self.installFailed(release, prompted: prompted) }
@@ -206,16 +248,21 @@ final class Updater {
                once: "updateFailed.\(release.version)", focus: prompted)
     }
 
-    /// Upgrades the cask and reopens the app. The cask quits this app on the way, so the process must outlive it:
-    /// its output goes to a file, since a pipe would close with the app and take brew down with it.
-    /// Exits with brew upgrade's status.
-    nonisolated static func upgradeProcess(brew: URL, app: String, log: URL) throws -> Process {
+    /// Downloads the new version without touching the running app.
+    nonisolated static let fetchScript = #""$BREW" update --quiet; HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" fetch --cask FlorianRiquelme/tap/screengrab"#
+    /// Replaces the app and reopens it, exiting with brew upgrade's status.
+    nonisolated static let upgradeScript = #"HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask FlorianRiquelme/tap/screengrab; s=$?; open -a "$APP"; exit $s"#
+
+    /// The cask quits this app during the upgrade, so the process must outlive it: its output goes to a file,
+    /// since a pipe would close with the app and take brew down with it.
+    nonisolated static func brewProcess(_ script: String, brew: URL, app: String, log: URL) throws -> Process {
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: log.path, contents: nil)
+        if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
         let out = try FileHandle(forWritingTo: log)
+        out.seekToEndOfFile()
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", #""$BREW" update --quiet; HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask FlorianRiquelme/tap/screengrab; s=$?; open -a "$APP"; exit $s"#]
+        p.arguments = ["-c", script]
         var env = ProcessInfo.processInfo.environment
         env["BREW"] = brew.path
         env["APP"] = app

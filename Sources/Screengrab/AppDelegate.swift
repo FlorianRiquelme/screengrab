@@ -186,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func perform(_ action: HotKeyAction) {
+        if updater.isRestarting { return updater.explainRestart() }
         switch action {
         case .captureArea: captureArea()
         case .repeatCapture: repeatCapture()
