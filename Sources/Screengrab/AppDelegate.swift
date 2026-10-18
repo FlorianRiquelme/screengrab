@@ -12,9 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private var actionItems: [HotKeyAction: NSMenuItem] = [:]
+    private var retentionItems: [NSMenuItem] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setIcon(recording: false)
+        pruneScreenshotCache()
         statusItem.menu = buildMenu()
         hotKeys = HotKeys { [weak self] action in self?.perform(action) }
         recording.onStateChange = { [weak self] state in self?.recorderChanged(state) }
@@ -47,6 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let folder = NSMenuItem(title: "Open Recordings Folder", action: #selector(openRecordingsFolder), keyEquivalent: "")
         folder.target = self
         menu.addItem(folder)
+        let retention = NSMenuItem(title: "Delete Copied Screenshots", action: nil, keyEquivalent: "")
+        retention.submenu = NSMenu()
+        retentionItems = CacheRetention.allCases.map { r in
+            let item = NSMenuItem(title: r.menuTitle, action: #selector(setRetention(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = r.rawValue
+            retention.submenu?.addItem(item)
+            return item
+        }
+        menu.addItem(retention)
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(.separator())
@@ -56,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        for item in retentionItems { item.state = item.tag == CacheRetention.current.rawValue ? .on : .off }
     }
 
     private func setIcon(recording: Bool) {
@@ -157,6 +170,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dir = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask)[0].appendingPathComponent("Screengrab")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         NSWorkspace.shared.open(dir)
+    }
+
+    @objc private func setRetention(_ item: NSMenuItem) {
+        CacheRetention.current = CacheRetention(rawValue: item.tag) ?? .sevenDays
+        pruneScreenshotCache()
     }
 
     @objc private func toggleLaunchAtLogin() {

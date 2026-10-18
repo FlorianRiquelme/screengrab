@@ -36,13 +36,64 @@ func screenshotFilename(date: Date, exists: (String) -> Bool) -> String {
     return name
 }
 
+/// How long Copy Path files stay in the screenshot cache. The raw value is days; 0 keeps them.
+enum CacheRetention: Int, CaseIterable {
+    case oneDay = 1, sevenDays = 7, thirtyDays = 30, never = 0
+
+    private static let key = "cacheRetentionDays"
+
+    static var current: CacheRetention {
+        get { (UserDefaults.standard.object(forKey: key) as? Int).flatMap(CacheRetention.init) ?? .sevenDays }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
+    }
+
+    var menuTitle: String {
+        switch self {
+        case .oneDay: "After 1 Day"
+        case .never: "Never"
+        default: "After \(rawValue) Days"
+        }
+    }
+
+    /// Completes "Copied screenshots are …".
+    var phrase: String {
+        switch self {
+        case .oneDay: "deleted after 1 day"
+        case .never: "kept until you delete them"
+        default: "deleted after \(rawValue) days"
+        }
+    }
+}
+
+func staleFiles(_ files: [(url: URL, modified: Date)], now: Date, retention: CacheRetention) -> [URL] {
+    guard retention != .never else { return [] }
+    let cutoff = now.addingTimeInterval(-Double(retention.rawValue) * 86_400)
+    return files.filter { $0.modified < cutoff }.map(\.url)
+}
+
+private var screenshotCacheDir: URL {
+    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("Screengrab")
+}
+
 func writeToScreenshotCache(_ data: Data) throws -> URL {
-    let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("Screengrab")
+    let dir = screenshotCacheDir
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let name = screenshotFilename(date: Date()) { FileManager.default.fileExists(atPath: dir.appendingPathComponent($0).path) }
     let url = dir.appendingPathComponent(name)
     try data.write(to: url, options: .withoutOverwriting)
+    pruneScreenshotCache()
     return url
+}
+
+/// Removes Copy Path files older than the retention. Saved files and recordings live elsewhere and are never touched.
+func pruneScreenshotCache() {
+    let fm = FileManager.default
+    guard let urls = try? fm.contentsOfDirectory(at: screenshotCacheDir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+    // Vision keeps its own cache in this directory; only screenshots are ours to delete.
+    let files = urls.filter { $0.lastPathComponent.hasPrefix("screenshot-") && $0.pathExtension == "png" }.compactMap { url in
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).map { (url: url, modified: $0) }
+    }
+    for url in staleFiles(files, now: Date(), retention: .current) { try? fm.removeItem(at: url) }
 }
 
 func recognizeText(at url: URL) async -> String {

@@ -44,4 +44,15 @@ import Testing
         let third = screenshotFilename(date: date) { $0 == first || $0 == second }
         #expect(third == first.replacingOccurrences(of: ".png", with: "-3.png"))
     }
+
+    @Test func staleFilesAreThoseOlderThanTheRetention() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let day: TimeInterval = 86_400
+        let old = URL(fileURLWithPath: "/c/old.png"), fresh = URL(fileURLWithPath: "/c/fresh.png"), ancient = URL(fileURLWithPath: "/c/ancient.png")
+        let files = [(url: old, modified: now - 8 * day), (url: fresh, modified: now - 6 * day), (url: ancient, modified: now - 40 * day)]
+        #expect(staleFiles(files, now: now, retention: .sevenDays) == [old, ancient])
+        #expect(staleFiles(files, now: now, retention: .thirtyDays) == [ancient])
+        #expect(staleFiles(files, now: now, retention: .oneDay) == [old, fresh, ancient])
+        #expect(staleFiles(files, now: now, retention: .never).isEmpty)
+    }
 }
