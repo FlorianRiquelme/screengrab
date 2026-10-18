@@ -78,7 +78,12 @@ final class Updater {
         case failed(Release)
     }
 
-    private static let latestURL = URL(string: "https://api.github.com/repos/FlorianRiquelme/screengrab/releases/latest")!
+    // Overridable in defaults so scripts/test-update.sh can rehearse an update against a local feed and tap.
+    private static var latestURL: URL {
+        UserDefaults.standard.string(forKey: "updateFeedURL").flatMap(URL.init(string:))
+            ?? URL(string: "https://api.github.com/repos/FlorianRiquelme/screengrab/releases/latest")!
+    }
+    nonisolated static var cask: String { UserDefaults.standard.string(forKey: "updateCask") ?? "FlorianRiquelme/tap/screengrab" }
     private static let lastCheckKey = "updateLastCheck"
     private static let releaseKey = "updateRelease"
     private static let updatedFromKey = "updatedFrom"
@@ -156,7 +161,7 @@ final class Updater {
         var request = URLRequest(url: Self.latestURL)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
+              (response as? HTTPURLResponse).map({ $0.statusCode == 200 }) ?? true,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let release = Release(json) else {
             if prompted { notice("Screengrab couldn't reach GitHub. Try again later.", focus: true) }
@@ -249,13 +254,13 @@ final class Updater {
     }
 
     /// Downloads the new version without touching the running app.
-    nonisolated static let fetchScript = #""$BREW" update --quiet; HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" fetch --cask FlorianRiquelme/tap/screengrab"#
+    nonisolated static let fetchScript = #""$BREW" update --quiet; HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" fetch --cask "$CASK""#
     /// Replaces the app and reopens it, exiting with brew upgrade's status.
-    nonisolated static let upgradeScript = #"HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask FlorianRiquelme/tap/screengrab; s=$?; open -a "$APP"; exit $s"#
+    nonisolated static let upgradeScript = #"HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask "$CASK"; s=$?; open -a "$APP"; exit $s"#
 
     /// The cask quits this app during the upgrade, so the process must outlive it: its output goes to a file,
     /// since a pipe would close with the app and take brew down with it.
-    nonisolated static func brewProcess(_ script: String, brew: URL, app: String, log: URL) throws -> Process {
+    nonisolated static func brewProcess(_ script: String, brew: URL, app: String, cask: String = cask, log: URL) throws -> Process {
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
         let out = try FileHandle(forWritingTo: log)
@@ -266,6 +271,7 @@ final class Updater {
         var env = ProcessInfo.processInfo.environment
         env["BREW"] = brew.path
         env["APP"] = app
+        env["CASK"] = cask
         env["PATH"] = brew.deletingLastPathComponent().path + ":" + (env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin")
         p.environment = env
         p.standardInput = FileHandle.nullDevice
