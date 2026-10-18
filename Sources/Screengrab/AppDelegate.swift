@@ -49,11 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ]
         if !CGPreflightScreenCaptureAccess() {
             tips.append(Tip(anchor: button, text: "Screengrab needs Screen Recording permission to capture. Turn it on in System Settings; macOS may ask you to reopen Screengrab.",
-                            edge: .minY, action: ("Open System Settings", {
+                            edge: .minY, actions: [TipAction(title: "Open System Settings") {
                 // Requesting first is what lists Screengrab in the pane.
                 CGRequestScreenCaptureAccess()
                 NSWorkspace.shared.open(screenRecordingSettingsURL)
-            })))
+            }]))
         }
         Tips.show(.setup, tips)
     }
