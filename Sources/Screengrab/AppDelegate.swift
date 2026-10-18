@@ -59,9 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Tip(anchor: button, text: "Copied screenshots are \(CacheRetention.current.phrase). Saved ones are kept. Change it under Delete Copied Screenshots in this menu.", edge: .minY),
         ]
         if case .homebrew = updater.installKind {
-            tips.append(Tip(anchor: button, text: "Install updates automatically? Screengrab checks GitHub once a day.", edge: .minY, actions: [
-                TipAction(title: UpdatePolicy.automatic.title, then: .advance) { UpdatePolicy.current = .automatic },
-                TipAction(title: UpdatePolicy.ask.title, then: .next) { UpdatePolicy.current = .ask },
+            tips.append(Tip(anchor: button, text: "Install updates automatically? Screengrab checks GitHub once a day and tells you with a notification.", edge: .minY, actions: [
+                TipAction(title: UpdatePolicy.automatic.title, then: .advance) { UpdatePolicy.current = .automatic; self.updater.requestNotifications() },
+                TipAction(title: UpdatePolicy.ask.title, then: .next) { UpdatePolicy.current = .ask; self.updater.requestNotifications() },
             ]))
         }
         if !CGPreflightScreenCaptureAccess() {

@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 
 /// A release version such as 1.2.3. Dev builds such as 0.0.0-dev have none, so they never check.
 struct Version: Comparable, CustomStringConvertible {
@@ -96,9 +97,18 @@ final class Updater {
     private var timer: Timer?
     private var upgrade: Process?
 
+    private let notifications = NotificationRelay()
+
     init(anchor: NSView, isIdle: @escaping () -> Bool) {
         self.anchor = anchor
         self.isIdle = isIdle
+        notifications.onClick = { [weak self] in self?.clicked($0) }
+        UNUserNotificationCenter.current().delegate = notifications
+    }
+
+    /// Asks for notifications while the user is deciding about updates, so the system prompt comes with context.
+    func requestNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
     }
 
     var canCheck: Bool { running != nil }
@@ -133,8 +143,8 @@ final class Updater {
         if let from = d.string(forKey: Self.updatedFromKey).flatMap(Version.init) {
             d.removeObject(forKey: Self.updatedFromKey)
             if from < running {
-                let notes = URL(string: "https://github.com/FlorianRiquelme/screengrab/releases/tag/v\(running)")!
-                notice("Updated to \(running).", actions: [TipAction(title: "Release Notes", then: .advance) { NSWorkspace.shared.open(notes) }], focus: true)
+                tell("Screengrab updated to \(running)", body: "Click for the release notes.", id: "updated.\(running)",
+                     fallback: "Updated to \(running).", actions: [TipAction(title: "Release Notes", then: .advance) { NSWorkspace.shared.open(self.notes) }], focus: true)
             }
         }
         if let saved = d.dictionary(forKey: Self.releaseKey).flatMap(Release.init), saved.version > running {
@@ -189,8 +199,45 @@ final class Updater {
             return
         }
         let verb = installKind == .manual ? "download" : "install"
-        notice("Screengrab \(release.version) is out. Choose Update in this menu to \(verb) it.",
-               once: prompted ? nil : "update.\(release.version)", focus: prompted)
+        if prompted { return notice("Screengrab \(release.version) is out. Choose Update in this menu to \(verb) it.", focus: true) }
+        let key = "updateAnnounced.\(release.version)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        tell("Screengrab \(release.version) is available",
+             body: installKind == .manual ? "Click to download it." : "Click to install it. Screengrab reopens when it's done.",
+             id: "available.\(release.version)",
+             fallback: "Screengrab \(release.version) is out. Choose Update in this menu to \(verb) it.", focus: false)
+    }
+
+    private var notes: URL {
+        URL(string: "https://github.com/FlorianRiquelme/screengrab/releases/tag/v\(running?.description ?? "")")!
+    }
+
+    /// What clicking a notification does, by the kind in its id. The click can reach a later launch than the one that posted it.
+    fileprivate func clicked(_ id: String) {
+        switch id.split(separator: ".").first {
+        case "available": update()
+        case "failed":
+            let page = if case .failed(let r) = state { r.page } else { URL(string: "https://github.com/FlorianRiquelme/screengrab/releases/latest")! }
+            NSWorkspace.shared.open(page)
+        case "updated": NSWorkspace.shared.open(notes)
+        default: break
+        }
+    }
+
+    /// News nobody asked for goes out as a notification, which reaches the user even when the menu bar icon is hidden.
+    /// A tip on the icon stands in when notifications are turned off.
+    private func tell(_ title: String, body: String, id: String, fallback: String, actions: [TipAction] = [], focus: Bool) {
+        Task {
+            let center = UNUserNotificationCenter.current()
+            guard (try? await center.requestAuthorization(options: [.alert])) == true else {
+                return notice(fallback, actions: actions, focus: focus)
+            }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+        }
     }
 
     /// The menu's Update item.
@@ -223,7 +270,7 @@ final class Updater {
         }
     }
 
-    /// The upgrade quits the app, so it starts only once no recording, capture or preview is open.
+    /// The app relaunches right after the upgrade, so it starts only once no recording, capture or preview is open.
     private func restartWhenIdle(_ release: Release, brew: URL, prompted: Bool) {
         guard let running else { return }
         guard isIdle() else {
@@ -234,9 +281,13 @@ final class Updater {
         UserDefaults.standard.set(running.description, forKey: Self.updatedFromKey)
         do {
             let p = try Self.brewProcess(Self.upgradeScript, brew: brew, app: InstallKind.appPath, log: Self.log)
-            // A successful upgrade quits this app first, so seeing the process end means the update did not take.
-            p.terminationHandler = { _ in
-                Task { @MainActor in self.installFailed(release, prompted: prompted) }
+            p.terminationHandler = { p in
+                let upgraded = p.terminationStatus == 0
+                Task { @MainActor in
+                    // brew upgrade exits 0 without upgrading when the tap does not have the release yet.
+                    if upgraded, let installed = Self.installedVersion, installed > running { self.relaunch() }
+                    else { self.installFailed(release, prompted: prompted) }
+                }
             }
             try p.run()
             upgrade = p
@@ -245,21 +296,33 @@ final class Updater {
         }
     }
 
+    private static var installedVersion: Version? {
+        (NSDictionary(contentsOfFile: InstallKind.appPath + "/Contents/Info.plist")?["CFBundleShortVersionString"] as? String).flatMap(Version.init)
+    }
+
+    /// brew will not quit an app it runs inside, so the app quits itself and a helper that outlives it reopens the new one.
+    private func relaunch() {
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/sh")
+        helper.arguments = ["-c", #"while kill -0 "$PID" 2>/dev/null; do sleep 0.2; done; open "$APP""#]
+        helper.environment = ["PID": String(getpid()), "APP": InstallKind.appPath, "PATH": "/usr/bin:/bin"]
+        guard (try? helper.run()) != nil else { return NSApp.terminate(nil) }
+        NSApp.terminate(nil)
+    }
+
     private func installFailed(_ release: Release, prompted: Bool) {
         UserDefaults.standard.removeObject(forKey: Self.updatedFromKey)
         upgrade = nil
         state = .failed(release)
-        notice("The update didn't install. Choose Update in this menu to download it instead.",
-               once: "updateFailed.\(release.version)", focus: prompted)
+        tell("The update to \(release.version) didn't install", body: "Click to download it instead.", id: "failed.\(release.version)",
+             fallback: "The update didn't install. Choose Update in this menu to download it instead.", focus: prompted)
     }
 
     /// Downloads the new version without touching the running app.
     nonisolated static let fetchScript = #""$BREW" update --quiet; HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" fetch --cask "$CASK""#
-    /// Replaces the app and reopens it, exiting with brew upgrade's status.
-    nonisolated static let upgradeScript = #"HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask "$CASK"; s=$?; open -a "$APP"; exit $s"#
+    /// Replaces the app on disk. The running copy stays up until it relaunches itself.
+    nonisolated static let upgradeScript = #"HOMEBREW_NO_AUTO_UPDATE=1 "$BREW" upgrade --cask "$CASK""#
 
-    /// The cask quits this app during the upgrade, so the process must outlive it: its output goes to a file,
-    /// since a pipe would close with the app and take brew down with it.
     nonisolated static func brewProcess(_ script: String, brew: URL, app: String, cask: String = cask, log: URL) throws -> Process {
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
@@ -282,5 +345,19 @@ final class Updater {
 
     private func notice(_ text: String, actions: [TipAction] = [], once id: String? = nil, focus: Bool) {
         Tips.notice(Tip(anchor: anchor, text: text, edge: .minY, actions: actions), once: id, focus: focus)
+    }
+}
+
+/// Hands notification clicks to the updater, and shows its banners even while Screengrab is the active app.
+private final class NotificationRelay: NSObject, UNUserNotificationCenterDelegate {
+    @MainActor var onClick: (String) -> Void = { _ in }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        .banner
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let id = response.notification.request.identifier
+        await MainActor.run { onClick(id) }
     }
 }

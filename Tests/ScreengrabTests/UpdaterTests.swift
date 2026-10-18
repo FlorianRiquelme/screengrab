@@ -73,11 +73,11 @@ import Testing
         #expect(r.log.hasPrefix("earlier run"), "the log keeps earlier runs")
     }
 
-    @Test func upgradeReportsItsStatusAndReopensTheApp() throws {
+    @Test func upgradeReportsBrewsStatusAndLeavesTheRelaunchToTheApp() throws {
         let r = try run(Updater.upgradeScript)
-        #expect(r.status == 3, "exit status is brew upgrade's, not open's")
+        #expect(r.status == 3)
         #expect(r.calls == ["upgrade --cask FlorianRiquelme/tap/screengrab auto=1"])
-        #expect(r.log.contains("/nonexistent/Screengrab.app"), "reopens the app even when the upgrade fails")
+        #expect(!r.log.contains("/nonexistent/Screengrab.app"))
     }
 }
 
