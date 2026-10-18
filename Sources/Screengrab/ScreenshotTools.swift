@@ -65,6 +65,21 @@ enum CacheRetention: Int, CaseIterable {
     }
 }
 
+/// The folder Save opens in: the Desktop until the user picks another in the menu bar menu.
+enum SaveFolder {
+    private static let key = "saveFolder"
+
+    static let presets = [FileManager.SearchPathDirectory.desktopDirectory, .documentDirectory, .downloadsDirectory, .picturesDirectory]
+        .compactMap { FileManager.default.urls(for: $0, in: .userDomainMask).first }
+
+    static var current: URL {
+        get { UserDefaults.standard.url(forKey: key) ?? presets[0] }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    static var name: String { FileManager.default.displayName(atPath: current.path) }
+}
+
 func staleFiles(_ files: [(url: URL, modified: Date)], now: Date, retention: CacheRetention) -> [URL] {
     guard retention != .never else { return [] }
     let cutoff = now.addingTimeInterval(-Double(retention.rawValue) * 86_400)

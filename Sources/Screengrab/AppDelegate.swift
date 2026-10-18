@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private var actionItems: [HotKeyAction: NSMenuItem] = [:]
     private var retentionItems: [NSMenuItem] = []
+    private let saveFolderMenu = NSMenu()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setIcon(recording: false)
@@ -82,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return item
         }
         menu.addItem(retention)
+        let saveFolder = NSMenuItem(title: "Save Screenshots To", action: nil, keyEquivalent: "")
+        saveFolder.submenu = saveFolderMenu
+        menu.addItem(saveFolder)
         loginItem.target = self
         menu.addItem(loginItem)
         let tips = NSMenuItem(title: "Show Tips Again", action: #selector(showTipsAgain), keyEquivalent: "")
@@ -95,6 +99,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         for item in retentionItems { item.state = item.tag == CacheRetention.current.rawValue ? .on : .off }
+        let current = SaveFolder.current.standardizedFileURL
+        let folders = SaveFolder.presets.contains { $0.standardizedFileURL == current } ? SaveFolder.presets : SaveFolder.presets + [current]
+        saveFolderMenu.items = folders.map { url in
+            let item = NSMenuItem(title: FileManager.default.displayName(atPath: url.path), action: #selector(setSaveFolder(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = url
+            item.state = url.standardizedFileURL == current ? .on : .off
+            return item
+        }
+        saveFolderMenu.addItem(.separator())
+        let choose = NSMenuItem(title: "Choose Folder…", action: #selector(chooseSaveFolder), keyEquivalent: "")
+        choose.target = self
+        saveFolderMenu.addItem(choose)
     }
 
     private func setIcon(recording: Bool) {
@@ -201,6 +218,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setRetention(_ item: NSMenuItem) {
         CacheRetention.current = CacheRetention(rawValue: item.tag) ?? .sevenDays
         pruneScreenshotCache()
+    }
+
+    @objc private func setSaveFolder(_ item: NSMenuItem) {
+        if let url = item.representedObject as? URL { SaveFolder.current = url }
+    }
+
+    @objc private func chooseSaveFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = SaveFolder.current
+        panel.prompt = "Choose"
+        NSApp.activate()
+        if panel.runModal() == .OK, let url = panel.url { SaveFolder.current = url }
     }
 
     @objc private func showTipsAgain() {

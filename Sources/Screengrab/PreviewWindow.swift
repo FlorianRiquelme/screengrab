@@ -314,7 +314,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
                 Tip(anchor: button("Copy Path"), text: "Saves a copy and copies its path, ready to paste to an agent. Copies are \(CacheRetention.current.phrase); change that in the menu bar.", edge: .minY),
                 Tip(anchor: button("Copy Image"), text: "Copies the image itself, for chats and docs.", edge: .minY),
                 Tip(anchor: button("Copy Text"), text: "Copies any text in the screenshot.", edge: .minY),
-                Tip(anchor: button("Save"), text: "Saves a file you keep, on the Desktop by default.", edge: .minY),
+                Tip(anchor: button("Save"), text: "Saves a file you keep. It opens in \(SaveFolder.name); change that in the menu bar.", edge: .minY),
                 Tip(anchor: media, text: "Esc throws the screenshot away. Nothing is kept unless you copy its path or save it."),
             ])
         case .recording:
@@ -452,7 +452,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         guard attachedSheet == nil else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
-        panel.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+        panel.directoryURL = SaveFolder.current
         panel.nameFieldStringValue = "Screenshot \(timestamp()).png"
         panel.beginSheetModal(for: self) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }

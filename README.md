@@ -37,7 +37,7 @@ xattr -dr com.apple.quarantine /Applications/Screengrab.app
 
 **Cmd+Shift+2** dims every screen. Drag on any of them, or press **Space** and click a window. The screenshot opens in a preview panel in the middle of the screen, and **Cmd+C** (Copy Path) saves it to `~/Library/Caches/Screengrab/`, copies the path, and closes the panel. Esc throws the screenshot away.
 
-Copied screenshots are deleted after 7 days. Change that, or turn it off, under **Delete Copied Screenshots** in the menu bar menu. Files you save and recordings are never deleted.
+Copied screenshots are deleted after 7 days. Change that, or turn it off, under **Delete Copied Screenshots** in the menu bar menu. Files you save and recordings are never deleted. **Cmd+S** saves to the Desktop; pick another folder under **Save Screenshots To** in the same menu.
 
 Copy Path saves at 1x. A Retina capture at 2x costs an agent about four times the image tokens and shows no text it could not read at 1x. Hold **Option** while copying to keep full resolution.
 
