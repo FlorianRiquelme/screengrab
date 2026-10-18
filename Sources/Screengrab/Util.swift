@@ -1,5 +1,7 @@
 import AppKit
 
+let screenRecordingSettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+
 func timestamp() -> String {
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")

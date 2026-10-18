@@ -70,6 +70,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     private var markup = Markup() { didSet { markupView?.annotations = markup.annotations } }
     private var tool = MarkupTool.drag { didSet { markupView?.tool = tool; toolPicker?.selectedSegment = MarkupTool.allCases.firstIndex(of: tool)! } }
     private var toolPicker: NSSegmentedControl?
+    private var media: NSView?
     private var rendered: (annotations: [Annotation], url: URL)?
     private var player: AVPlayer?
     private var isDismissing = false
@@ -174,6 +175,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         media.layer?.masksToBounds = true
         media.widthAnchor.constraint(equalToConstant: size.width).isActive = true
         media.heightAnchor.constraint(equalToConstant: size.height).isActive = true
+        self.media = media
 
         buttons = actions.indices.map { button(for: $0) }
         let buttonRow = NSStackView(views: buttons)
@@ -298,11 +300,36 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
             ctx.duration = 0.15
             animator().alphaValue = 1
         }
+        showTips()
+    }
+
+    private func showTips() {
+        let button = { (title: String) in self.buttons[self.actions.firstIndex { $0.title == title }!] }
+        switch content {
+        case .screenshot:
+            guard let toolPicker, let media else { return }
+            let tool = MarkupTool.allCases.map { $0.key.uppercased() }.joined(separator: ", ")
+            Tips.show(.screenshotPreview, [
+                Tip(anchor: toolPicker, text: "Drag the image into any app. Arrow, Box and Blur mark it up; press \(tool)."),
+                Tip(anchor: button("Copy Path"), text: "Saves a copy and copies its path, ready to paste to an agent. Copies are \(CacheRetention.current.phrase); change that in the menu bar.", edge: .minY),
+                Tip(anchor: button("Copy Image"), text: "Copies the image itself, for chats and docs.", edge: .minY),
+                Tip(anchor: button("Copy Text"), text: "Copies any text in the screenshot.", edge: .minY),
+                Tip(anchor: button("Save"), text: "Saves a file you keep, on the Desktop by default.", edge: .minY),
+                Tip(anchor: media, text: "Esc throws the screenshot away. Nothing is kept unless you copy its path or save it."),
+            ])
+        case .recording:
+            Tips.show(.recordingPreview, [
+                Tip(anchor: button("Copy"), text: "Puts the video file on the clipboard, ready to paste into a chat or email.", edge: .minY),
+                Tip(anchor: button("Show in Finder"), text: "Recordings are kept in ~/Movies/Screengrab.", edge: .minY),
+                Tip(anchor: button("Delete"), text: "Moves it to the Trash.", edge: .minY),
+            ])
+        }
     }
 
     fileprivate func dismiss() {
         guard !isDismissing else { return }
         isDismissing = true
+        Tips.dismiss(in: self)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.1
             animator().alphaValue = 0
@@ -343,10 +370,12 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
 
     /// Esc first steps back from a drawing tool to Drag, so only a second Esc discards.
     override func cancelOperation(_ sender: Any?) {
+        if Tips.dismissIfShowing() { return }
         if markupView != nil && tool != .drag { tool = .drag } else { dismiss() }
     }
 
     func windowWillClose(_ notification: Notification) {
+        Tips.dismiss(in: self)
         Self.open.removeAll { $0 === self }
         player?.pause()
         player = nil

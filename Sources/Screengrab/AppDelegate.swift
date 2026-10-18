@@ -32,6 +32,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if args.contains("--show-hud") {
             recording.toggle()
         }
+        if !args.contains("--open") && !args.contains("--show-hud") {
+            // The status item's window has no frame for a moment after launch.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showSetupTips() }
+        }
+    }
+
+    private func showSetupTips() {
+        guard let button = statusItem.button else { return }
+        let keys = "\(shortcut(for: .captureArea)) captures an area, \(shortcut(for: .repeatCapture)) repeats it, "
+            + "\(shortcut(for: .scrollingCapture)) captures a scrolling page, \(shortcut(for: .toggleRecording)) records."
+        var tips = [
+            Tip(anchor: button, text: "Screengrab lives here. " + keys, edge: .minY),
+            Tip(anchor: button, text: "Copied screenshots are \(CacheRetention.current.phrase). Saved ones are kept. Change it under Delete Copied Screenshots in this menu.", edge: .minY),
+        ]
+        if !CGPreflightScreenCaptureAccess() {
+            tips.append(Tip(anchor: button, text: "Screengrab needs Screen Recording permission to capture. Turn it on in System Settings; macOS may ask you to reopen Screengrab.",
+                            edge: .minY, action: ("Open System Settings", {
+                // Requesting first is what lists Screengrab in the pane.
+                CGRequestScreenCaptureAccess()
+                NSWorkspace.shared.open(screenRecordingSettingsURL)
+            })))
+        }
+        Tips.show(.setup, tips)
     }
 
     private func buildMenu() -> NSMenu {
@@ -61,6 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(retention)
         loginItem.target = self
         menu.addItem(loginItem)
+        let tips = NSMenuItem(title: "Show Tips Again", action: #selector(showTipsAgain), keyEquivalent: "")
+        tips.target = self
+        menu.addItem(tips)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
@@ -162,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+            NSWorkspace.shared.open(screenRecordingSettingsURL)
         }
     }
 
@@ -175,6 +201,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setRetention(_ item: NSMenuItem) {
         CacheRetention.current = CacheRetention(rawValue: item.tag) ?? .sevenDays
         pruneScreenshotCache()
+    }
+
+    @objc private func showTipsAgain() {
+        Tips.resetAll()
+        DispatchQueue.main.async { self.showSetupTips() }
     }
 
     @objc private func toggleLaunchAtLogin() {

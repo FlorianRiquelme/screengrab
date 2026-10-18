@@ -293,6 +293,14 @@ private final class ScrollCapturePanel: NSPanel {
     func show(beside area: NSRect, on screen: NSScreen) {
         setFrameOrigin(controlPanelOrigin(size: frame.size, area: area, visible: screen.visibleFrame))
         makeKeyAndOrderFront(nil)
+        Tips.show(.scrollCapture, [
+            Tip(anchor: contentView!, text: "Scroll the app underneath from top to bottom. The page grows here. Press Return when done."),
+        ])
+    }
+
+    override func orderOut(_ sender: Any?) {
+        Tips.dismiss(in: self)
+        super.orderOut(sender)
     }
 
     /// The thumbnail fills the width and keeps its newest rows in view.
@@ -313,12 +321,12 @@ private final class ScrollCapturePanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 36, 76: onDone?()
-        case 53: onCancel?()
+        case 53: if !Tips.dismissIfShowing() { onCancel?() }
         default: super.keyDown(with: event)
         }
     }
 
-    override func cancelOperation(_ sender: Any?) { onCancel?() }
+    override func cancelOperation(_ sender: Any?) { if !Tips.dismissIfShowing() { onCancel?() } }
 
     @objc private func donePressed() { onDone?() }
     @objc private func cancelPressed() { onCancel?() }

@@ -23,6 +23,16 @@ struct HotKeyBinding {
         if modifiers.contains(.control) { m |= UInt32(controlKey) }
         return m
     }
+
+    /// As menus show it, e.g. ⇧⌘2.
+    var shortcut: String {
+        let symbols: [(NSEvent.ModifierFlags, String)] = [(.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+        return symbols.filter { modifiers.contains($0.0) }.map(\.1).joined() + character.uppercased()
+    }
+}
+
+func shortcut(for action: HotKeyAction) -> String {
+    hotKeyTable.first { $0.action == action }!.shortcut
 }
 
 /// The single place to change shortcuts; menu items and registration both read it.

@@ -21,6 +21,7 @@ final class RecordingHUD: NSPanel {
     private let micPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let timeLabel = NSTextField(labelWithString: "00:00")
     private let muteButton = NSButton()
+    private let recordButton = NSButton()
     private var selector: CaptureSelector?
     private var timer: Timer?
     private var startedAt = Date()
@@ -75,9 +76,15 @@ final class RecordingHUD: NSPanel {
         install(configStack)
         present(on: screen)
         makeKeyAndOrderFront(nil)
+        Tips.show(.recordingBar, [
+            Tip(anchor: targetControl, text: "Record a whole display or an area."),
+            Tip(anchor: cameraPopup, text: "The camera bubble and click ripples are part of the video. This bar is not."),
+            Tip(anchor: recordButton, text: "Press Return or click Record. Press \(shortcut(for: .toggleRecording)) again to stop."),
+        ])
     }
 
     func showRecording(startedAt: Date, muted: Bool) {
+        Tips.dismiss(in: self)
         isRecording = true
         self.startedAt = startedAt
         install(recordingStack)
@@ -101,10 +108,12 @@ final class RecordingHUD: NSPanel {
         timer = nil
         selector?.dismiss()
         selector = nil
+        Tips.dismiss(in: self)
         orderOut(nil)
     }
 
     override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53, Tips.dismissIfShowing() { return }
         switch (event.keyCode, isRecording) {
         case (53, false): onClose?()
         case (36, false), (76, false): onRecord?()
@@ -113,6 +122,7 @@ final class RecordingHUD: NSPanel {
     }
 
     override func cancelOperation(_ sender: Any?) {
+        if Tips.dismissIfShowing() { return }
         if !isRecording { onClose?() }
     }
 
@@ -140,7 +150,11 @@ final class RecordingHUD: NSPanel {
             popup.widthAnchor.constraint(lessThanOrEqualToConstant: 170).isActive = true
         }
 
-        let record = NSButton(title: "Record", image: symbol("record.circle", color: .white), target: self, action: #selector(recordPressed))
+        let record = recordButton
+        record.title = "Record"
+        record.image = symbol("record.circle", color: .white)
+        record.target = self
+        record.action = #selector(recordPressed)
         record.imagePosition = .imageLeading
         record.bezelStyle = .glass
         record.bezelColor = .systemRed
