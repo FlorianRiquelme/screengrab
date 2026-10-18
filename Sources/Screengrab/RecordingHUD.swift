@@ -38,7 +38,6 @@ final class RecordingHUD: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         isMovableByWindowBackground = true
-        appearance = NSAppearance(named: .darkAqua)
 
         glass.contentView = NSView()
         contentView = glass
@@ -93,7 +92,7 @@ final class RecordingHUD: NSPanel {
     }
 
     func setMuted(_ muted: Bool) {
-        muteButton.image = symbol(muted ? "mic.slash.fill" : "mic.fill", color: muted ? .systemRed : .white)
+        muteButton.image = symbol(muted ? "mic.slash.fill" : "mic.fill", color: muted ? .systemRed : .labelColor)
         muteButton.setAccessibilityLabel(muted ? "Unmute" : "Mute")
     }
 
@@ -146,7 +145,7 @@ final class RecordingHUD: NSPanel {
         record.bezelStyle = .glass
         record.bezelColor = .systemRed
         record.controlSize = .large
-        let close = NSButton(image: symbol("xmark", color: .white), target: self, action: #selector(closePressed))
+        let close = NSButton(image: symbol("xmark", color: .labelColor), target: self, action: #selector(closePressed))
         close.bezelStyle = .glass
         close.borderShape = .circle
         close.controlSize = .large
@@ -171,14 +170,14 @@ final class RecordingHUD: NSPanel {
     private func buildRecordingStack() {
         let dot = NSImageView(image: symbol("circle.fill", color: .systemRed))
         timeLabel.font = .monospacedDigitSystemFont(ofSize: 15, weight: .semibold)
-        timeLabel.textColor = .white
+        timeLabel.textColor = .labelColor
         muteButton.bezelStyle = .glass
         muteButton.borderShape = .circle
         muteButton.controlSize = .large
         muteButton.target = self
         muteButton.action = #selector(mutePressed)
         setMuted(false)
-        let stop = NSButton(title: "Stop", image: symbol("stop.fill", color: .white), target: self, action: #selector(stopPressed))
+        let stop = NSButton(title: "Stop", image: symbol("stop.fill", color: .labelColor), target: self, action: #selector(stopPressed))
         stop.imagePosition = .imageLeading
         stop.bezelStyle = .glass
         stop.controlSize = .large
@@ -276,7 +275,7 @@ final class RecordingHUD: NSPanel {
     }
 
     private func icon(_ name: String) -> NSImageView {
-        let view = NSImageView(image: symbol(name, color: .white.withAlphaComponent(0.75)))
+        let view = NSImageView(image: symbol(name, color: .secondaryLabelColor))
         view.setContentHuggingPriority(.required, for: .horizontal)
         return view
     }

@@ -242,7 +242,6 @@ private final class ScrollCapturePanel: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         isMovableByWindowBackground = true
-        appearance = NSAppearance(named: .darkAqua)
 
         let size = Self.thumbnailSize
         thumbnail.imageScaling = .scaleAxesIndependently
@@ -254,7 +253,7 @@ private final class ScrollCapturePanel: NSPanel {
         scrollView.layer?.cornerRadius = 8
         scrollView.layer?.cornerCurve = .continuous
         scrollView.layer?.masksToBounds = true
-        scrollView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        scrollView.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
         scrollView.widthAnchor.constraint(equalToConstant: size.width).isActive = true
         scrollView.heightAnchor.constraint(equalToConstant: size.height).isActive = true
 
