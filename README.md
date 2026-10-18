@@ -25,6 +25,8 @@ Then set it up once:
 3. If captures still fail after that, quit Screengrab from the menu bar and open it again.
 4. To have it start with your Mac, choose **Launch at Login** in its menu.
 
+Short tips explain each screen the first time you see it. Choose **Show Tips Again** in the menu to see them again.
+
 The app is not notarized by Apple, because that needs a paid developer account. The cask removes the quarantine flag after install so macOS opens it without complaint. If you download the zip from [Releases](https://github.com/FlorianRiquelme/screengrab/releases) instead, remove the flag yourself:
 
 ```
@@ -34,6 +36,8 @@ xattr -dr com.apple.quarantine /Applications/Screengrab.app
 ## The core loop
 
 **Cmd+Shift+2** dims every screen. Drag on any of them, or press **Space** and click a window. The screenshot opens in a preview panel in the middle of the screen, and **Cmd+C** (Copy Path) saves it to `~/Library/Caches/Screengrab/`, copies the path, and closes the panel. Esc throws the screenshot away.
+
+Copied screenshots are deleted after 7 days. Change that, or turn it off, under **Delete Copied Screenshots** in the menu bar menu. Files you save and recordings are never deleted.
 
 Copy Path saves at 1x. A Retina capture at 2x costs an agent about four times the image tokens and shows no text it could not read at 1x. Hold **Option** while copying to keep full resolution.
 
@@ -85,7 +89,7 @@ In the screenshot preview:
 
 | Key | Action |
 | --- | --- |
-| Cmd+C | Copy Path (Option: full resolution) |
+| Cmd+C | Copy Path, deleted after 7 days (Option: full resolution) |
 | Shift+Cmd+C | Copy Image (Option: 1x) |
 | Cmd+T | Copy Text |
 | Cmd+S | Save |
