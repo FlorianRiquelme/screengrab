@@ -33,6 +33,12 @@ The app is not notarized by Apple, because that needs a paid developer account. 
 xattr -dr com.apple.quarantine /Applications/Screengrab.app
 ```
 
+## Updates
+
+Screengrab asks GitHub once a day whether a newer release is out, so GitHub sees that request. When one is, **Update to X.Y.Z…** appears at the top of the menu bar menu. A Homebrew install updates in place: Screengrab runs `brew upgrade`, quits, and reopens as the new version. A zip install opens the release page so you can download it.
+
+Under **Updates** in the menu, Homebrew installs choose between **Install Automatically**, which updates while no capture or recording is open, and **Ask First**, the default. **Check for Updates** checks right away.
+
 ## The core loop
 
 **Cmd+Shift+2** dims every screen. Drag on any of them, or press **Space** and click a window. The screenshot opens in a preview panel in the middle of the screen, and **Cmd+C** (Copy Path) saves it to `~/Library/Caches/Screengrab/`, copies the path, and closes the panel. Esc throws the screenshot away.
