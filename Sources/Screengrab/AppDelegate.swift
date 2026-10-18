@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var actionItems: [HotKeyAction: NSMenuItem] = [:]
     private var retentionItems: [NSMenuItem] = []
     private let saveFolderMenu = NSMenu()
+    private let updateItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let updateSeparator = NSMenuItem.separator()
+    private var policyItems: [NSMenuItem] = []
+    private lazy var updater = Updater(anchor: statusItem.button!) { [unowned self] in self.isIdle }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setIcon(recording: false)
@@ -33,10 +37,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if args.contains("--show-hud") {
             recording.toggle()
         }
-        if !args.contains("--open") && !args.contains("--show-hud") {
-            // The status item's window has no frame for a moment after launch.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showSetupTips() }
+        // The status item's window has no frame for a moment after launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            if !args.contains("--open") && !args.contains("--show-hud") { self.showSetupTips() }
+            self.updater.start()
         }
+    }
+
+    /// Nothing on screen that an update's quit and relaunch would cut short.
+    private var isIdle: Bool {
+        guard case .idle = recording.state else { return false }
+        return selector == nil && scrollCapture == nil && !PreviewWindow.isShowing && !Tips.isShowing && NSApp.modalWindow == nil
     }
 
     private func showSetupTips() {
@@ -47,6 +58,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Tip(anchor: button, text: "Screengrab lives here. " + keys, edge: .minY),
             Tip(anchor: button, text: "Copied screenshots are \(CacheRetention.current.phrase). Saved ones are kept. Change it under Delete Copied Screenshots in this menu.", edge: .minY),
         ]
+        if case .homebrew = updater.installKind {
+            tips.append(Tip(anchor: button, text: "Install updates automatically? Screengrab checks GitHub once a day.", edge: .minY, actions: [
+                TipAction(title: UpdatePolicy.automatic.title, then: .advance) { UpdatePolicy.current = .automatic },
+                TipAction(title: UpdatePolicy.ask.title, then: .next) { UpdatePolicy.current = .ask },
+            ]))
+        }
         if !CGPreflightScreenCaptureAccess() {
             tips.append(Tip(anchor: button, text: "Screengrab needs Screen Recording permission to capture. Turn it on in System Settings; macOS may ask you to reopen Screengrab.",
                             edge: .minY, actions: [TipAction(title: "Open System Settings") {
@@ -61,6 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
+        updateItem.target = self
+        menu.addItem(updateItem)
+        menu.addItem(updateSeparator)
         for b in hotKeyTable {
             let item = NSMenuItem(title: b.title, action: #selector(menuAction(_:)), keyEquivalent: b.character)
             item.keyEquivalentModifierMask = b.modifiers
@@ -86,6 +106,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let saveFolder = NSMenuItem(title: "Save Screenshots To", action: nil, keyEquivalent: "")
         saveFolder.submenu = saveFolderMenu
         menu.addItem(saveFolder)
+        let updates = NSMenuItem(title: "Updates", action: nil, keyEquivalent: "")
+        updates.submenu = NSMenu()
+        if case .homebrew = updater.installKind {
+            policyItems = UpdatePolicy.allCases.map { policy in
+                let item = NSMenuItem(title: policy.title, action: #selector(setUpdatePolicy(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = policy.rawValue
+                updates.submenu?.addItem(item)
+                return item
+            }
+            updates.submenu?.addItem(.separator())
+        }
+        // Dev builds have no version to compare, so the item stays disabled.
+        let check = NSMenuItem(title: "Check for Updates", action: updater.canCheck ? #selector(checkForUpdates) : nil, keyEquivalent: "")
+        check.target = self
+        updates.submenu?.addItem(check)
+        menu.addItem(updates)
         loginItem.target = self
         menu.addItem(loginItem)
         let tips = NSMenuItem(title: "Show Tips Again", action: #selector(showTipsAgain), keyEquivalent: "")
@@ -97,6 +134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        updateItem.title = updater.menuTitle ?? ""
+        updateItem.isHidden = updater.menuTitle == nil
+        updateSeparator.isHidden = updateItem.isHidden
+        updateItem.action = updater.isInstalling ? nil : #selector(update)
+        for item in policyItems { item.state = item.representedObject as? String == UpdatePolicy.current.rawValue ? .on : .off }
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         for item in retentionItems { item.state = item.tag == CacheRetention.current.rawValue ? .on : .off }
         let current = SaveFolder.current.standardizedFileURL
@@ -233,6 +275,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.prompt = "Choose"
         NSApp.activate()
         if panel.runModal() == .OK, let url = panel.url { SaveFolder.current = url }
+    }
+
+    @objc private func update() { updater.update() }
+
+    @objc private func checkForUpdates() {
+        Task { await updater.check(prompted: true) }
+    }
+
+    @objc private func setUpdatePolicy(_ item: NSMenuItem) {
+        if let raw = item.representedObject as? String, let policy = UpdatePolicy(rawValue: raw) { UpdatePolicy.current = policy }
     }
 
     @objc private func showTipsAgain() {

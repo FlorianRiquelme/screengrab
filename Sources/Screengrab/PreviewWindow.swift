@@ -54,6 +54,7 @@ struct PreviewAction {
 @MainActor
 final class PreviewWindow: NSPanel, NSWindowDelegate {
     private static var open: [PreviewWindow] = []
+    static var isShowing: Bool { !open.isEmpty }
     private static let padding: CGFloat = 12
     private static let imageRadius: CGFloat = 16
     private static let buttonWidth: CGFloat = 96
