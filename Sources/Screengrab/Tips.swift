@@ -14,12 +14,14 @@ struct Tip {
 }
 
 /// Shows each surface's tips once, one popover at a time, until the user has seen them or skipped them all.
+/// While tips show, → and ← step through them and Esc skips all, before the surface sees those keys.
 @MainActor
 enum Tips {
     private static let skipKey = "tipsSkipped"
     private static var surface: TipSurface?
     private static var queue: [Tip] = []
     private static var index = 0
+    private static var keyMonitor: Any?
     private static let controller = TipController()
     private static let popover: NSPopover = {
         let p = NSPopover()
@@ -39,21 +41,21 @@ enum Tips {
         self.surface = surface
         queue = tips
         index = 0
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            switch event.keyCode {
+            case 124: next()
+            case 123: back()
+            case 53: skipAll()
+            default: return event
+            }
+            return nil
+        }
         step()
-    }
-
-    /// Closes the tips and marks their surface seen. Returns whether any were showing, so Esc can stop there.
-    @discardableResult
-    static func dismissIfShowing() -> Bool {
-        guard let surface else { return false }
-        UserDefaults.standard.set(true, forKey: seenKey(surface))
-        close()
-        return true
     }
 
     /// For a surface closing: drops its tips so no popover outlives it.
     static func dismiss(in window: NSWindow) {
-        if isShowing, queue[index].anchor.window === window || queue[index].anchor.window == nil { dismissIfShowing() }
+        if isShowing, queue[index].anchor.window === window || queue[index].anchor.window == nil { finish() }
     }
 
     static func resetAll() {
@@ -64,7 +66,13 @@ enum Tips {
 
     fileprivate static func next() {
         index += 1
-        if index < queue.count { step() } else { dismissIfShowing() }
+        if index < queue.count { step() } else { finish() }
+    }
+
+    fileprivate static func back() {
+        guard index > 0 else { return }
+        index -= 1
+        step()
     }
 
     fileprivate static func skipAll() {
@@ -72,10 +80,16 @@ enum Tips {
         close()
     }
 
+    /// Marks the surface seen and closes its tips.
+    private static func finish() {
+        if let surface { UserDefaults.standard.set(true, forKey: seenKey(surface)) }
+        close()
+    }
+
     private static func step() {
         let tip = queue[index]
-        guard let window = tip.anchor.window, window.isVisible else { dismissIfShowing(); return }
-        controller.load(tip, counter: queue.count > 1 ? "\(index + 1) of \(queue.count)" : "", isLast: index == queue.count - 1)
+        guard let window = tip.anchor.window, window.isVisible else { return finish() }
+        controller.load(tip, counter: queue.count > 1 ? "\(index + 1) of \(queue.count)" : "", isFirst: index == 0, isLast: index == queue.count - 1)
         popover.contentSize = controller.view.fittingSize
         let edge: NSRectEdge = switch (tip.edge, tip.anchor.isFlipped) {
         case (.maxY, true): .minY
@@ -83,13 +97,21 @@ enum Tips {
         default: tip.edge
         }
         popover.show(relativeTo: tip.anchor.bounds, of: tip.anchor, preferredEdge: edge)
-        // Clicking Next makes the popover key; hand keys back so the surface's shortcuts keep working.
-        if window.canBecomeKey { window.makeKey() }
+        if window.canBecomeKey {
+            // Clicking a tip button makes the popover key; hand keys back so the surface's shortcuts keep working.
+            window.makeKey()
+        } else {
+            // The menu bar icon's window never takes keys, so the arrow keys need the app active and the tip key.
+            NSApp.activate()
+            controller.view.window?.makeKey()
+        }
     }
 
     private static func close() {
         surface = nil
         queue = []
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
         popover.close()
     }
 }
@@ -98,7 +120,9 @@ private final class TipController: NSViewController {
     private let text = NSTextField(wrappingLabelWithString: "")
     private let counter = NSTextField(labelWithString: "")
     private let actionButton = NSButton(title: "", target: nil, action: nil)
-    private let nextButton = NSButton(title: "Next", target: nil, action: nil)
+    private let backButton = NSButton(title: "", target: nil, action: nil)
+    private let nextButton = NSButton(title: "", target: nil, action: nil)
+    private let skipButton = NSButton(title: "", target: nil, action: nil)
     private var action: (() -> Void)?
     private lazy var textWidth = text.widthAnchor.constraint(equalToConstant: 260)
     private let row = NSStackView()
@@ -107,19 +131,18 @@ private final class TipController: NSViewController {
         text.font = .systemFont(ofSize: 13)
         counter.font = .systemFont(ofSize: 11)
         counter.textColor = .secondaryLabelColor
-        let skip = NSButton(title: "Skip All", target: self, action: #selector(skipPressed))
-        actionButton.target = self
-        actionButton.action = #selector(actionPressed)
-        nextButton.target = self
-        nextButton.action = #selector(nextPressed)
-        nextButton.keyEquivalent = "\r"
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        row.setViews([counter, spacer, skip, actionButton, nextButton], in: .leading)
-        for b in [skip, actionButton, nextButton] {
+        for (b, sel) in [(skipButton, #selector(skipPressed)), (actionButton, #selector(actionPressed)),
+                         (backButton, #selector(backPressed)), (nextButton, #selector(nextPressed))] {
+            b.target = self
+            b.action = sel
             b.controlSize = .small
             b.setContentCompressionResistancePriority(.required, for: .horizontal)
         }
+        skipButton.attributedTitle = Self.title("Skip All", shortcut: "esc")
+        backButton.attributedTitle = Self.title("Back", shortcut: "←")
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        row.setViews([counter, spacer, skipButton, actionButton, backButton, nextButton], in: .leading)
         let stack = NSStackView(views: [text, row])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -138,11 +161,19 @@ private final class TipController: NSViewController {
         view = container
     }
 
-    func load(_ tip: Tip, counter: String, isLast: Bool) {
+    /// The same title-then-key look as the preview's buttons.
+    private static func title(_ title: String, shortcut: String) -> NSAttributedString {
+        let text = NSMutableAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium)])
+        text.append(NSAttributedString(string: "  \(shortcut)", attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]))
+        return text
+    }
+
+    func load(_ tip: Tip, counter: String, isFirst: Bool, isLast: Bool) {
         _ = view
         text.stringValue = tip.text
         self.counter.stringValue = counter
-        nextButton.title = isLast ? "Done" : "Next"
+        backButton.isHidden = isFirst
+        nextButton.attributedTitle = Self.title(isLast ? "Done" : "Next", shortcut: "→")
         action = tip.action?.run
         actionButton.title = tip.action?.title ?? ""
         actionButton.isHidden = tip.action == nil
@@ -152,9 +183,8 @@ private final class TipController: NSViewController {
         text.preferredMaxLayoutWidth = textWidth.constant
     }
 
-    override func cancelOperation(_ sender: Any?) { Tips.dismissIfShowing() }
-
     @objc private func nextPressed() { Tips.next() }
+    @objc private func backPressed() { Tips.back() }
     @objc private func skipPressed() { Tips.skipAll() }
     @objc private func actionPressed() { action?() }
 }

@@ -113,7 +113,6 @@ final class RecordingHUD: NSPanel {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53, Tips.dismissIfShowing() { return }
         switch (event.keyCode, isRecording) {
         case (53, false): onClose?()
         case (36, false), (76, false): onRecord?()
@@ -122,7 +121,6 @@ final class RecordingHUD: NSPanel {
     }
 
     override func cancelOperation(_ sender: Any?) {
-        if Tips.dismissIfShowing() { return }
         if !isRecording { onClose?() }
     }
 

@@ -25,7 +25,7 @@ Then set it up once:
 3. If captures still fail after that, quit Screengrab from the menu bar and open it again.
 4. To have it start with your Mac, choose **Launch at Login** in its menu.
 
-Short tips explain each screen the first time you see it. Choose **Show Tips Again** in the menu to see them again.
+Short tips explain each screen the first time you see it. Press → for the next tip, ← to go back, or Esc to skip them all. Choose **Show Tips Again** in the menu to see them again.
 
 The app is not notarized by Apple, because that needs a paid developer account. The cask removes the quarantine flag after install so macOS opens it without complaint. If you download the zip from [Releases](https://github.com/FlorianRiquelme/screengrab/releases) instead, remove the flag yourself:
 

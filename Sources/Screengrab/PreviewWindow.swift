@@ -370,7 +370,6 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
 
     /// Esc first steps back from a drawing tool to Drag, so only a second Esc discards.
     override func cancelOperation(_ sender: Any?) {
-        if Tips.dismissIfShowing() { return }
         if markupView != nil && tool != .drag { tool = .drag } else { dismiss() }
     }
 

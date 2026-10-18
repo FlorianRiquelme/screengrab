@@ -10,6 +10,7 @@ The core loop is capture, one action, gone. Every change must keep that loop thi
 - Explain unclear behavior with a one-time tip in `Sources/Screengrab/Tips.swift`, not with a new control.
 - Settings go in the menu bar menu as items or submenus. Never add a settings window.
 - A new on-screen control needs the maintainer's explicit OK before you build it.
+- The user never has to guess what to do next. Every button shows its keyboard shortcut, and every tip shows how to go on: → Next, ← Back, Esc Skip All.
 
 ## Build and test
 

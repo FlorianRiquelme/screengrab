@@ -321,12 +321,12 @@ private final class ScrollCapturePanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 36, 76: onDone?()
-        case 53: if !Tips.dismissIfShowing() { onCancel?() }
+        case 53: onCancel?()
         default: super.keyDown(with: event)
         }
     }
 
-    override func cancelOperation(_ sender: Any?) { if !Tips.dismissIfShowing() { onCancel?() } }
+    override func cancelOperation(_ sender: Any?) { onCancel?() }
 
     @objc private func donePressed() { onDone?() }
     @objc private func cancelPressed() { onCancel?() }
