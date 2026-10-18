@@ -106,7 +106,11 @@ final class Updater {
         UNUserNotificationCenter.current().delegate = notifications
     }
 
-    /// Asks for notifications while the user is deciding about updates, so the system prompt comes with context.
+    /// Whether the user has yet to allow or turn off notifications, so setup should ask.
+    var notificationsUndecided: Bool {
+        get async { await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .notDetermined }
+    }
+
     func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
     }

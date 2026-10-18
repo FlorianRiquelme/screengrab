@@ -51,6 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func showSetupTips() {
+        Task { self.showSetupTips(askAboutNotifications: await self.updater.notificationsUndecided) }
+    }
+
+    private func showSetupTips(askAboutNotifications: Bool) {
         guard let button = statusItem.button else { return }
         let keys = "\(shortcut(for: .captureArea)) captures an area, \(shortcut(for: .repeatCapture)) repeats it, "
             + "\(shortcut(for: .scrollingCapture)) captures a scrolling page, \(shortcut(for: .toggleRecording)) records."
@@ -59,9 +63,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Tip(anchor: button, text: "Copied screenshots are \(CacheRetention.current.phrase). Saved ones are kept. Change it under Delete Copied Screenshots in this menu.", edge: .minY),
         ]
         if case .homebrew = updater.installKind {
-            tips.append(Tip(anchor: button, text: "Install updates automatically? Screengrab checks GitHub once a day and tells you with a notification.", edge: .minY, actions: [
-                TipAction(title: UpdatePolicy.automatic.title, then: .advance) { UpdatePolicy.current = .automatic; self.updater.requestNotifications() },
-                TipAction(title: UpdatePolicy.ask.title, then: .next) { UpdatePolicy.current = .ask; self.updater.requestNotifications() },
+            tips.append(Tip(anchor: button, text: "Install updates automatically? Screengrab checks GitHub once a day.", edge: .minY, actions: [
+                TipAction(title: UpdatePolicy.automatic.title, then: .advance) { UpdatePolicy.current = .automatic },
+                TipAction(title: UpdatePolicy.ask.title, then: .next) { UpdatePolicy.current = .ask },
+            ]))
+        }
+        if askAboutNotifications {
+            // macOS shows its own prompt on Allow; asking here first means it never comes as a surprise.
+            tips.append(Tip(anchor: button, text: "Get a notification when a new version of Screengrab is out?", edge: .minY, actions: [
+                TipAction(title: "Allow Notifications", then: .advance) { self.updater.requestNotifications() },
+                TipAction(title: "Not Now", then: .next) {},
             ]))
         }
         if !CGPreflightScreenCaptureAccess() {
