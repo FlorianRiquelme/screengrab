@@ -98,21 +98,24 @@ final class Updater {
     private var upgrade: Process?
 
     private let notifications = NotificationRelay()
+    // UserNotifications aborts outside an app bundle, including SwiftPM debug executables.
+    private let notificationCenter: UNUserNotificationCenter? =
+        Bundle.main.bundleURL.pathExtension == "app" ? .current() : nil
 
     init(anchor: NSView, isIdle: @escaping () -> Bool) {
         self.anchor = anchor
         self.isIdle = isIdle
         notifications.onClick = { [weak self] in self?.clicked($0) }
-        UNUserNotificationCenter.current().delegate = notifications
+        notificationCenter?.delegate = notifications
     }
 
     /// Whether the user has yet to allow or turn off notifications, so setup should ask.
     var notificationsUndecided: Bool {
-        get async { await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .notDetermined }
+        get async { await notificationCenter?.notificationSettings().authorizationStatus == .notDetermined }
     }
 
     func requestNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        notificationCenter?.requestAuthorization(options: [.alert]) { _, _ in }
     }
 
     var canCheck: Bool { running != nil }
@@ -233,8 +236,8 @@ final class Updater {
     /// A tip on the icon stands in when notifications are turned off.
     private func tell(_ title: String, body: String, id: String, fallback: String, actions: [TipAction] = [], focus: Bool) {
         Task {
-            let center = UNUserNotificationCenter.current()
-            guard (try? await center.requestAuthorization(options: [.alert])) == true else {
+            guard let center = notificationCenter,
+                  (try? await center.requestAuthorization(options: [.alert])) == true else {
                 return notice(fallback, actions: actions, focus: focus)
             }
             let content = UNMutableNotificationContent()

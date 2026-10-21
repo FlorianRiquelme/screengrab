@@ -1,6 +1,13 @@
-import Foundation
+import AppKit
 import Testing
 @testable import Screengrab
+
+@Suite @MainActor struct UpdaterTests {
+    @Test func unbundledExecutablesDoNotOfferNotificationPermission() async {
+        let updater = Updater(anchor: NSView(), isIdle: { true })
+        #expect(await updater.notificationsUndecided == false)
+    }
+}
 
 @Suite struct VersionTests {
     @Test func comparesNumerically() throws {
