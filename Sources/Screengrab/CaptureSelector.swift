@@ -77,16 +77,22 @@ final class CaptureSelector {
     }
 
     private func handle(_ event: NSEvent) -> Bool {
-        switch event.keyCode {
-        case 53:
+        switch (event.keyCode, event.type) {
+        case (53, .keyDown):
             finish(nil)
-        case 49 where mode.allowsWindows:
+        case (49, .keyDown) where dragging != nil:
+            if !event.isARepeat { dragging?.setMoving(true) }
+        case (49, .keyUp):
+            panels.forEach { $0.view.setMoving(false) }
+        case (49, .keyDown) where mode.allowsWindows:
             if !event.isARepeat { toggleWindowMode() }
         default:
             return false
         }
         return true
     }
+
+    private var dragging: SelectionView? { panels.first { $0.view.isDragging }?.view }
 
     private func toggleWindowMode() {
         if case .area = picking {
@@ -150,6 +156,19 @@ private final class SelectorPanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         if onKey?(event) != true { super.keyDown(with: event) }
     }
+
+    override func keyUp(with event: NSEvent) {
+        if onKey?(event) != true { super.keyUp(with: event) }
+    }
+}
+
+/// Shifts a selection's two corners by `delta`, stopped at the edges of `bounds` so its size holds.
+func movedSelection(anchor: CGPoint, current: CGPoint, by delta: CGPoint, within bounds: CGRect) -> (anchor: CGPoint, current: CGPoint) {
+    let minX = min(anchor.x, current.x), maxX = max(anchor.x, current.x)
+    let minY = min(anchor.y, current.y), maxY = max(anchor.y, current.y)
+    let dx = min(max(delta.x, bounds.minX - minX), bounds.maxX - maxX)
+    let dy = min(max(delta.y, bounds.minY - minY), bounds.maxY - maxY)
+    return (CGPoint(x: anchor.x + dx, y: anchor.y + dy), CGPoint(x: current.x + dx, y: current.y + dy))
 }
 
 private final class SelectionView: NSView {
@@ -164,6 +183,8 @@ private final class SelectionView: NSView {
     private var state = State.area
     private var anchor: NSPoint?
     private var current: NSPoint?
+    private var isMoving = false
+    private var grip: NSPoint?
     private let hint = NSGlassEffectView()
     private let label = NSTextField(labelWithString: "")
 
@@ -195,12 +216,36 @@ private final class SelectionView: NSView {
         self.state = state
         anchor = nil
         current = nil
+        isMoving = false
+        grip = nil
         hint.isHidden = false
         if label.stringValue != text {
             label.stringValue = text
             layoutHint()
         }
         needsDisplay = true
+    }
+
+    var isDragging: Bool { anchor != nil }
+
+    func setMoving(_ moving: Bool) {
+        guard moving != isMoving else { return }
+        guard moving else {
+            isMoving = false
+            grip = nil
+            NSCursor.crosshair.set()
+            return
+        }
+        guard let anchor, let current else { return }
+        isMoving = true
+        grip = current
+        self.anchor = clamped(anchor)
+        self.current = clamped(current)
+        NSCursor.closedHand.set()
+    }
+
+    private func clamped(_ p: NSPoint) -> NSPoint {
+        NSPoint(x: min(max(p.x, bounds.minX), bounds.maxX), y: min(max(p.y, bounds.minY), bounds.maxY))
     }
 
     private func layoutHint() {
@@ -238,8 +283,16 @@ private final class SelectionView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard anchor != nil else { return }
-        current = convert(event.locationInWindow, from: nil)
+        guard let anchor else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        if isMoving, let grip, let current {
+            let moved = movedSelection(anchor: anchor, current: current, by: CGPoint(x: point.x - grip.x, y: point.y - grip.y), within: bounds)
+            self.anchor = moved.anchor
+            self.current = moved.current
+            self.grip = point
+        } else {
+            current = point
+        }
         needsDisplay = true
     }
 
@@ -248,7 +301,8 @@ private final class SelectionView: NSView {
             onClick?()
             return
         }
-        current = convert(event.locationInWindow, from: nil)
+        if !isMoving { current = convert(event.locationInWindow, from: nil) }
+        setMoving(false)
         let rect = selection
         anchor = nil
         current = nil
@@ -283,7 +337,7 @@ private final class SelectionView: NSView {
         let outline = NSBezierPath(rect: selection.insetBy(dx: -0.5, dy: -0.5))
         outline.lineWidth = 1
         outline.stroke()
-        let size = "\(Int(selection.width)) × \(Int(selection.height))"
+        let size = "\(Int(selection.width)) × \(Int(selection.height)) · Hold Space to move"
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.white]
         let text = NSAttributedString(string: size, attributes: attrs)
         var origin = NSPoint(x: selection.minX, y: selection.maxY + 6)
