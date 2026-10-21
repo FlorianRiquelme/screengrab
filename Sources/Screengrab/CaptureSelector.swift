@@ -230,18 +230,18 @@ private final class SelectionView: NSView {
 
     func setMoving(_ moving: Bool) {
         guard moving != isMoving else { return }
-        if moving {
-            guard let a = anchor, let c = current else { return }
-            isMoving = true
-            grip = c
-            anchor = clamped(a)
-            current = clamped(c)
-            NSCursor.closedHand.set()
-        } else {
+        guard moving else {
             isMoving = false
             grip = nil
             NSCursor.crosshair.set()
+            return
         }
+        guard let anchor, let current else { return }
+        isMoving = true
+        grip = current
+        self.anchor = clamped(anchor)
+        self.current = clamped(current)
+        NSCursor.closedHand.set()
     }
 
     private func clamped(_ p: NSPoint) -> NSPoint {
@@ -302,11 +302,10 @@ private final class SelectionView: NSView {
             return
         }
         if !isMoving { current = convert(event.locationInWindow, from: nil) }
+        setMoving(false)
         let rect = selection
         anchor = nil
         current = nil
-        isMoving = false
-        grip = nil
         hint.isHidden = false
         needsDisplay = true
         if let rect, rect.width >= 8, rect.height >= 8 { onArea?(rect.integral) }
