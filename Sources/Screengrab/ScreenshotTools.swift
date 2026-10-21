@@ -111,10 +111,11 @@ func pruneScreenshotCache() {
     for url in staleFiles(files, now: Date(), retention: .current) { try? fm.removeItem(at: url) }
 }
 
-func recognizeText(at url: URL) async -> String {
+func recognizeText(in capture: Capture, annotations: [Annotation]) async -> String {
     var request = RecognizeTextRequest()
     request.recognitionLevel = .accurate
     request.usesLanguageCorrection = true
-    let observations = (try? await request.perform(on: url)) ?? []
+    let image = render(capture.image, annotations, scale: capture.scale)
+    let observations = (try? await request.perform(on: image)) ?? []
     return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
 }
