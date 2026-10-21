@@ -78,9 +78,28 @@ Press **Cmd+Shift+8** and drag over the content you want, then scroll the app un
 
 Press **Cmd+Shift+7** to open the recording bar. Record a whole display or an area, with a camera and a microphone of your choice. The camera bubble and click ripples are part of the video. The bar and the area outline are not. While recording, the bar shows the elapsed time, a mute toggle, and **Stop**.
 
-![Recording preview with Copy, Show in Finder and Delete](docs/screenshots/recording-preview.png)
+Recordings go to `~/Movies/Screengrab/`. When one finishes, it opens in a preview. Drag the thumbnail strip's handles to trim the beginning and end. Click the strip to scrub. The dimmed portions stay out of the exported clip.
 
-Recordings go to `~/Movies/Screengrab/`. When one finishes, it opens in a preview where **Copy** puts the file on the pasteboard, ready to paste into a chat or an email.
+**Copy** puts the selected clip on the pasteboard, ready to paste into a chat or an email. **Show in Finder** exports that same selection and reveals it. Edits create a uniquely named `Edited` movie beside the original. With no edits, both actions use the original file.
+
+Choose **Remove Audio from Recording** in the menu bar to remove sound from this clip. This changes the exported movie, not just playback volume. Edits stay in the preview until you copy or reveal the clip. Esc closes without exporting. **Delete** moves the original recording to the Trash.
+
+In the recording preview:
+
+| Key | Action |
+| --- | --- |
+| Space | Play or pause the selection |
+| Left, Right | Step through video frames |
+| I | Set the start at the displayed frame |
+| O | Set the end after the displayed frame |
+| Tab, Shift+Tab | Focus the trim handles and action buttons |
+| Arrow keys with a handle focused | Adjust that boundary one frame at a time |
+| Cmd+Z, Shift+Cmd+Z | Undo, redo |
+| Shift+Cmd+M | Toggle audio removal for this clip |
+| Cmd+C | Copy the selected clip |
+| Cmd+R | Export the selected clip and show it in Finder |
+| Cmd+Delete | Move the original recording to the Trash |
+| Esc, Cmd+W | Close without exporting, or cancel an export in progress |
 
 ## Shortcuts
 
