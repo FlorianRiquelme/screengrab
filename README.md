@@ -124,7 +124,14 @@ scripts/build.sh
 
 `scripts/test.sh` runs the test suite.
 
-`Screengrab --open <path>` opens an image or a `.mov` in the matching preview.
+To open an image or a `.mov` in its preview after a debug build, run:
+
+```sh
+swift build
+.build/debug/Screengrab --open "$PWD/docs/screenshots/preview.png"
+```
+
+The bare executable skips update notifications because macOS requires an app bundle for them. The signed app built by `scripts/build.sh` keeps notification support.
 
 ## License
 
