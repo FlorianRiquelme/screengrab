@@ -8,15 +8,15 @@ struct SelectionMode {
     var areaHint: String
 
     static func recordingArea(on screen: NSScreen) -> SelectionMode {
-        SelectionMode(screens: [screen], allowsWindows: false, areaHint: "Drag to select the recording area. Esc cancels.")
+        SelectionMode(screens: [screen], allowsWindows: false, areaHint: "Drag to select the recording area, hold Space while dragging to move it. Esc cancels.")
     }
 
     static var screenshot: SelectionMode {
-        SelectionMode(screens: NSScreen.screens, allowsWindows: true, areaHint: "Drag to capture an area. Space: window. Esc cancels.")
+        SelectionMode(screens: NSScreen.screens, allowsWindows: true, areaHint: "Drag to capture an area, hold Space while dragging to move it. Space: window. Esc cancels.")
     }
 
     static var scrollingCapture: SelectionMode {
-        SelectionMode(screens: NSScreen.screens, allowsWindows: false, areaHint: "Drag over the content you'll scroll. Esc cancels.")
+        SelectionMode(screens: NSScreen.screens, allowsWindows: false, areaHint: "Drag over the content you'll scroll, hold Space while dragging to move it. Esc cancels.")
     }
 }
 

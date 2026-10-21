@@ -41,7 +41,7 @@ Under **Updates** in the menu, Homebrew installs choose between **Install Automa
 
 ## The core loop
 
-**Cmd+Shift+2** dims every screen. Drag on any of them, or press **Space** and click a window. The screenshot opens in a preview panel in the middle of the screen, and **Cmd+C** (Copy Path) saves it to `~/Library/Caches/Screengrab/`, copies the path, and closes the panel. Esc throws the screenshot away.
+**Cmd+Shift+2** dims every screen. Drag on any of them, or press **Space** and click a window. Hold **Space** while dragging to move the selection without changing its size. The screenshot opens in a preview panel in the middle of the screen, and **Cmd+C** (Copy Path) saves it to `~/Library/Caches/Screengrab/`, copies the path, and closes the panel. Esc throws the screenshot away.
 
 Copied screenshots are deleted after 7 days. Change that, or turn it off, under **Delete Copied Screenshots** in the menu bar menu. Files you save and recordings are never deleted. **Cmd+S** saves to the Desktop; pick another folder under **Save Screenshots To** in the same menu.
 
@@ -86,7 +86,7 @@ Recordings go to `~/Movies/Screengrab/`. When one finishes, it opens in a previe
 
 | Shortcut | Action |
 | --- | --- |
-| Cmd+Shift+2 | Capture an area, or press Space for a window |
+| Cmd+Shift+2 | Capture an area (hold Space while dragging to move it), or press Space for a window |
 | Cmd+Shift+1 | Repeat the last capture |
 | Cmd+Shift+8 | Scrolling capture |
 | Cmd+Shift+7 | Open the recording bar, or stop a recording |
