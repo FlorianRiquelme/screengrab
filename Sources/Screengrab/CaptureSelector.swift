@@ -8,15 +8,15 @@ struct SelectionMode {
     var areaHint: String
 
     static func recordingArea(on screen: NSScreen) -> SelectionMode {
-        SelectionMode(screens: [screen], allowsWindows: false, areaHint: "Drag to select the recording area, hold Space while dragging to move it. Esc cancels.")
+        SelectionMode(screens: [screen], allowsWindows: false, areaHint: "Drag to select the recording area. Esc cancels.")
     }
 
     static var screenshot: SelectionMode {
-        SelectionMode(screens: NSScreen.screens, allowsWindows: true, areaHint: "Drag to capture an area, hold Space while dragging to move it. Space: window. Esc cancels.")
+        SelectionMode(screens: NSScreen.screens, allowsWindows: true, areaHint: "Drag to capture an area. Space: window. Esc cancels.")
     }
 
     static var scrollingCapture: SelectionMode {
-        SelectionMode(screens: NSScreen.screens, allowsWindows: false, areaHint: "Drag over the content you'll scroll, hold Space while dragging to move it. Esc cancels.")
+        SelectionMode(screens: NSScreen.screens, allowsWindows: false, areaHint: "Drag over the content you'll scroll. Esc cancels.")
     }
 }
 
@@ -337,7 +337,7 @@ private final class SelectionView: NSView {
         let outline = NSBezierPath(rect: selection.insetBy(dx: -0.5, dy: -0.5))
         outline.lineWidth = 1
         outline.stroke()
-        let size = "\(Int(selection.width)) × \(Int(selection.height))"
+        let size = "\(Int(selection.width)) × \(Int(selection.height)) · Hold Space to move"
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.white]
         let text = NSAttributedString(string: size, attributes: attrs)
         var origin = NSPoint(x: selection.minX, y: selection.maxY + 6)
