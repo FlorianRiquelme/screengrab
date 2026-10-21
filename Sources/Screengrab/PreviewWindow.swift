@@ -1,5 +1,4 @@
 import AppKit
-import AVKit
 import UniformTypeIdentifiers
 
 enum PreviewContent {
@@ -54,12 +53,16 @@ struct PreviewAction {
 @MainActor
 final class PreviewWindow: NSPanel, NSWindowDelegate {
     private static var open: [PreviewWindow] = []
+    private static weak var active: PreviewWindow?
+    static var activeRecording: PreviewWindow? {
+        guard let active, active.isVisible, !active.isDismissing, active.recording != nil else { return nil }
+        return active
+    }
     static var isShowing: Bool { !open.isEmpty }
     private static let padding: CGFloat = 12
     private static let imageRadius: CGFloat = 16
     private static let buttonWidth: CGFloat = 96
     private static let buttonSpacing: CGFloat = 12
-    private static let fallbackVideoSize = CGSize(width: 640, height: 360)
     /// A tall image fitted whole would be a sliver; below this width it keeps this width and scrolls instead.
     private static let minImageWidth: CGFloat = 360
 
@@ -73,7 +76,8 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     private var toolPicker: NSSegmentedControl?
     private var media: NSView?
     private var rendered: (annotations: [Annotation], url: URL)?
-    private var player: AVPlayer?
+    private let recording: RecordingPreview?
+    private var deliveryTask: Task<Void, Never>?
     private var isDismissing = false
     private var buttons: [NSButton] = []
     private var notice: (index: Int, text: String)?
@@ -82,6 +86,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     static func show(_ content: PreviewContent) async {
         var image: NSImage?
         var base: CGImage?
+        var recording: RecordingPreview?
         let pixelSize: CGSize
         switch content {
         case .screenshot(let url, let ownsFile):
@@ -96,20 +101,26 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
             image = loaded
             base = cgImage
         case .recording(let url, _):
-            let asset = AVURLAsset(url: url)
-            let track = try? await asset.loadTracks(withMediaType: .video).first
-            pixelSize = if let track, let size = try? await track.load(.naturalSize) { size } else { fallbackVideoSize }
+            do {
+                let preview = try await RecordingPreview.open(url)
+                recording = preview
+                pixelSize = preview.pixelSize
+            } catch {
+                NSAlert(error: error).runModal()
+                return
+            }
         }
-        let w = PreviewWindow(content: content, image: image, base: base, pixelSize: pixelSize)
+        let w = PreviewWindow(content: content, image: image, base: base, pixelSize: pixelSize, recording: recording)
         open.append(w)
         w.present(cascadeIndex: open.count - 1)
     }
 
-    private init(content: PreviewContent, image: NSImage?, base: CGImage?, pixelSize: CGSize) {
+    private init(content: PreviewContent, image: NSImage?, base: CGImage?, pixelSize: CGSize, recording: RecordingPreview?) {
         self.content = content
         self.actions = content.actions
         self.image = image
         self.base = base
+        self.recording = recording
 
         let screen = screenUnderMouse()
         let scale = screen.backingScaleFactor
@@ -117,7 +128,8 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         sourceScale = image.flatMap { img in img.representations.first.map { CGFloat($0.pixelsWide) / img.size.width } } ?? 1
         let natural = CGSize(width: pixelSize.width / scale, height: pixelSize.height / scale)
         let vis = screen.visibleFrame
-        let fit = min(1, 0.7 * vis.width / natural.width, 0.7 * vis.height / natural.height)
+        let mediaHeight = recording == nil ? 0.7 * vis.height : min(0.7 * vis.height, vis.height - 220)
+        let fit = min(1, 0.7 * vis.width / natural.width, mediaHeight / natural.height)
         let scrollFit = min(1, Self.minImageWidth / natural.width)
         let scrolls = image != nil && fit < scrollFit
         let shown = scrolls ? scrollFit : fit
@@ -162,13 +174,8 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
             } else {
                 media = imageView
             }
-        case .recording(let url, _):
-            let playerView = AVPlayerView()
-            let player = AVPlayer(url: url)
-            playerView.player = player
-            playerView.controlsStyle = .inline
-            self.player = player
-            media = playerView
+        case .recording:
+            media = recording!.mediaView
         }
         media.wantsLayer = true
         media.layer?.cornerRadius = min(Self.imageRadius, min(size.width, size.height) / 4)
@@ -184,13 +191,17 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
 
         let p = Self.padding
         var views = [media]
+        if let recording {
+            views.append(recording.timelineView)
+            recording.onChange = { [weak self] in self?.refreshButtons() }
+        }
         if case .recording(_, let interruption?) = content {
             let label = NSTextField(labelWithString: "Recording stopped early: \(interruption)")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
             label.lineBreakMode = .byTruncatingTail
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            label.widthAnchor.constraint(lessThanOrEqualTo: media.widthAnchor).isActive = true
+            label.widthAnchor.constraint(lessThanOrEqualToConstant: size.width).isActive = true
             views.append(label)
         }
         if markupView != nil {
@@ -207,6 +218,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         }
         views.append(buttonRow)
         let stack = NSStackView(views: views)
+        recording?.timelineView.widthAnchor.constraint(equalToConstant: max(Self.minImageWidth, size.width)).isActive = true
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = p
@@ -261,6 +273,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     private func refreshButtons() {
         for (i, b) in buttons.enumerated() {
             b.attributedTitle = attributedTitle(for: actions[i], option: optionHeld, notice: notice?.index == i ? notice?.text : nil)
+            b.isEnabled = deliveryTask == nil && recording?.isExporting != true
         }
     }
 
@@ -278,7 +291,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     @objc private func buttonPressed(_ sender: NSButton) { perform(actions[sender.tag], option: optionHeld) }
 
     private func perform(_ action: PreviewAction, option: Bool) {
-        guard !isDismissing else { return }
+        guard !isDismissing, deliveryTask == nil, recording?.isExporting != true else { return }
         action.handler(self, option)
     }
 
@@ -287,7 +300,18 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         super.flagsChanged(with: event)
     }
 
-    func windowDidBecomeKey(_ notification: Notification) { refreshButtons() }
+    func windowDidBecomeKey(_ notification: Notification) {
+        Self.active = self
+        refreshButtons()
+    }
+
+    var canToggleRecordingAudio: Bool { !isDismissing && deliveryTask == nil && recording?.canToggleAudio == true }
+    var recordingRemovesAudio: Bool { recording?.removesAudio == true }
+
+    @objc func toggleRecordingAudio() {
+        guard Self.active === self, canToggleRecordingAudio else { return }
+        recording?.toggleRemoveAudio()
+    }
 
     private func present(cascadeIndex: Int) {
         let vis = screenUnderMouse().visibleFrame
@@ -319,10 +343,13 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
                 Tip(anchor: media, text: "Esc throws the screenshot away. Nothing is kept unless you copy its path or save it."),
             ])
         case .recording:
-            Tips.show(.recordingPreview, [
-                Tip(anchor: button("Copy"), text: "Puts the video file on the clipboard, ready to paste into a chat or email.", edge: .minY),
-                Tip(anchor: button("Show in Finder"), text: "Recordings are kept in ~/Movies/Screengrab.", edge: .minY),
-                Tip(anchor: button("Delete"), text: "Moves it to the Trash.", edge: .minY),
+            guard let recording else { return }
+            Tips.show(.recordingEditing, [
+                Tip(anchor: recording.timelineView, text: "Drag the handles to keep the part you want. Click the strip to scrub. Space plays or pauses; the arrow keys step through frames."),
+                Tip(anchor: recording.timelineView, text: "I sets the start, O sets the end after the current frame. Tab selects a handle; arrow keys adjust it. ⌘Z undoes, ⇧⌘Z redoes."),
+                Tip(anchor: button("Copy"), text: "Copy exports the selected clip. Show in Finder exports the same selection. Your original stays unchanged.", edge: .minY),
+                Tip(anchor: recording.timelineView, text: "Remove Audio from Recording in the menu bar removes sound from this clip. Press ⇧⌘M to toggle it. Esc closes without exporting."),
+                Tip(anchor: button("Delete"), text: "Moves the original recording to the Trash.", edge: .minY),
             ])
         }
     }
@@ -330,6 +357,9 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     fileprivate func dismiss() {
         guard !isDismissing else { return }
         isDismissing = true
+        if Self.active === self { Self.active = nil }
+        deliveryTask?.cancel()
+        recording?.close()
         Tips.dismiss(in: self)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.1
@@ -342,12 +372,15 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     override var canBecomeKey: Bool { true }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if recording?.handleKey(event) == true { return true }
         var flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let option = flags.contains(.option)
         flags.remove(.option)
         guard flags.contains(.command), let key = event.charactersIgnoringModifiers?.lowercased() else { return super.performKeyEquivalent(with: event) }
         if key == "w" && flags == .command {
             dismiss()
+        } else if key == "m" && flags == [.command, .shift] && recording != nil {
+            toggleRecordingAudio()
         } else if key == "z" && markupView != nil && (flags == .command || flags == [.command, .shift]) {
             if flags == .command { markup.undo() } else { markup.redo() }
         } else if let action = actions.first(where: { $0.key == key && $0.modifiers == flags }) {
@@ -362,6 +395,8 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         let modified = !event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
         if event.keyCode == 53 {
             cancelOperation(nil)
+        } else if recording?.handleKey(event) == true {
+            return
         } else if markupView != nil, !modified, let picked = MarkupTool.allCases.first(where: { $0.key == event.charactersIgnoringModifiers?.lowercased() }) {
             tool = picked
         } else {
@@ -377,8 +412,9 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         Tips.dismiss(in: self)
         Self.open.removeAll { $0 === self }
-        player?.pause()
-        player = nil
+        if Self.active === self { Self.active = nil }
+        deliveryTask?.cancel()
+        recording?.close()
         if content.ownsFile { try? FileManager.default.removeItem(at: content.url) }
         if let rendered { try? FileManager.default.removeItem(at: rendered.url) }
     }
@@ -431,16 +467,46 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         }
     }
 
-    fileprivate func copyRecording() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects([content.url as NSURL])
-        dismiss()
-    }
+    fileprivate func copyRecording() { deliverRecording(reveal: false) }
 
-    fileprivate func revealRecording() {
-        NSWorkspace.shared.activateFileViewerSelecting([content.url])
-        dismiss()
+    fileprivate func revealRecording() { deliverRecording(reveal: true) }
+
+    private func deliverRecording(reveal: Bool) {
+        guard let recording, deliveryTask == nil, !isDismissing else { return }
+        let index = actions.firstIndex { $0.title == (reveal ? "Show in Finder" : "Copy") }!
+        deliveryTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.deliveryTask = nil
+                self.notice = nil
+                self.refreshButtons()
+            }
+            do {
+                let url = try await recording.prepareOutput { [weak self] progress in
+                    guard let self, !self.isDismissing else { return }
+                    self.notice = (index, "Export \(Int(progress * 100))%")
+                    self.refreshButtons()
+                }
+                guard !Task.isCancelled, !self.isDismissing else { return }
+                if reveal {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } else {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    guard pb.writeObjects([url as NSURL]) else {
+                        throw NSError(domain: "Screengrab", code: 1, userInfo: [
+                            NSLocalizedDescriptionKey: "The clip could not be copied. Try Copy again.",
+                        ])
+                    }
+                }
+                self.dismiss()
+            } catch is CancellationError {
+            } catch {
+                guard !self.isDismissing else { return }
+                await NSAlert(error: error).beginSheetModal(for: self)
+            }
+        }
+        refreshButtons()
     }
 
     fileprivate func trashRecording() {

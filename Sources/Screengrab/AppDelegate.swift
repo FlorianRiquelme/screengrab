@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var actionItems: [HotKeyAction: NSMenuItem] = [:]
     private var retentionItems: [NSMenuItem] = []
     private let saveFolderMenu = NSMenu()
+    private let removeAudioItem = NSMenuItem(title: "Remove Audio from Recording", action: nil, keyEquivalent: "m")
     private let updateItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let updateSeparator = NSMenuItem.separator()
     private var policyItems: [NSMenuItem] = []
@@ -104,6 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let folder = NSMenuItem(title: "Open Recordings Folder", action: #selector(openRecordingsFolder), keyEquivalent: "")
         folder.target = self
         menu.addItem(folder)
+        removeAudioItem.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(removeAudioItem)
         let retention = NSMenuItem(title: "Delete Copied Screenshots", action: nil, keyEquivalent: "")
         retention.submenu = NSMenu()
         retentionItems = CacheRetention.allCases.map { r in
@@ -145,6 +148,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let preview = PreviewWindow.activeRecording
+        removeAudioItem.target = preview
+        removeAudioItem.action = preview?.canToggleRecordingAudio == true ? #selector(PreviewWindow.toggleRecordingAudio) : nil
+        removeAudioItem.state = preview?.recordingRemovesAudio == true ? .on : .off
         updateItem.title = updater.menuTitle ?? ""
         updateItem.isHidden = updater.menuTitle == nil
         updateSeparator.isHidden = updateItem.isHidden

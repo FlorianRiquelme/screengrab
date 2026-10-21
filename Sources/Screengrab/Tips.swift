@@ -1,7 +1,7 @@
 import AppKit
 
 enum TipSurface: String, CaseIterable {
-    case setup, screenshotPreview, scrollCapture, recordingBar, recordingPreview
+    case setup, screenshotPreview, scrollCapture, recordingBar, recordingEditing
 }
 
 /// One explanation, pointing at the control it explains.
