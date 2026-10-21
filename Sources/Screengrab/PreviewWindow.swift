@@ -87,7 +87,7 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
         case .screenshot(let url, let ownsFile):
             guard let loaded = NSImage(contentsOf: url),
                   let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary) else {
                 if ownsFile { try? FileManager.default.removeItem(at: url) }
                 return
             }
@@ -416,10 +416,13 @@ final class PreviewWindow: NSPanel, NSWindowDelegate {
     }
 
     fileprivate func copyScreenshotText() {
+        guard let base else { return }
+        let capture = Capture(image: base, scale: sourceScale)
+        let annotations = markup.annotations
         let index = actions.firstIndex { $0.title == "Copy Text" }!
-        Task { [weak self, url = content.url] in
-            let text = await recognizeText(at: url)
-            guard let self, !self.isDismissing else { return }
+        Task { [weak self] in
+            let text = await recognizeText(in: capture, annotations: annotations)
+            guard let self, !self.isDismissing, self.isVisible, self.markup.annotations == annotations else { return }
             if text.isEmpty { return self.flash("No text found", on: index) }
             let pb = NSPasteboard.general
             pb.clearContents()

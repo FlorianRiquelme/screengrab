@@ -56,7 +56,7 @@ Copy Path saves at 1x. A Retina capture at 2x costs an agent about four times th
 ![Screenshot preview with an arrow, a box and a blurred area](docs/screenshots/preview.png)
 
 - **Copy Image** (Shift+Cmd+C) copies the PNG itself.
-- **Copy Text** (Cmd+T) runs on-device text recognition and copies the text.
+- **Copy Text** (Cmd+T) runs on-device text recognition on the marked-up image and copies the text.
 - **Save** (Cmd+S) asks where to save the PNG.
 - Drag the image out of the panel to drop it into Finder or another app.
 
