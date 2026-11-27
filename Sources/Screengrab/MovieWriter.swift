@@ -22,11 +22,8 @@ final class MovieWriter: @unchecked Sendable {
     init(url: URL, pixelSize: CGSize, audioChannels: Int?) throws {
         writer = try AVAssetWriter(outputURL: url, fileType: .mov)
 
-        video = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: Int(pixelSize.width),
-            AVVideoHeightKey: Int(pixelSize.height),
-        ])
+        video = AVAssetWriterInput(mediaType: .video, outputSettings: Self.videoSettings(
+            width: Int(pixelSize.width), height: Int(pixelSize.height), allowFrameReordering: true))
         video.expectsMediaDataInRealTime = true
         writer.add(video)
 
@@ -45,6 +42,19 @@ final class MovieWriter: @unchecked Sendable {
         }
 
         guard writer.startWriting() else { throw writer.error ?? MovieWriterError.failed }
+    }
+
+    static func videoSettings(width: Int, height: Int, allowFrameReordering: Bool) -> [String: Any] {
+        let bitsPerPixelPerSecond = 16
+        return [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: width * height * bitsPerPixelPerSecond,
+                AVVideoAllowFrameReorderingKey: allowFrameReordering,
+            ] as [String: Any],
+        ]
     }
 
     /// Returns false when the frame was dropped because the encoder was not ready.

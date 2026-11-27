@@ -79,12 +79,8 @@ enum RecordingExport {
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
             ])
             videoOutput.alwaysCopiesSampleData = false
-            let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
-                AVVideoCodecKey: AVVideoCodecType.h264,
-                AVVideoWidthKey: source.encodedWidth,
-                AVVideoHeightKey: source.encodedHeight,
-                AVVideoCompressionPropertiesKey: [AVVideoAllowFrameReorderingKey: false],
-            ])
+            let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: MovieWriter.videoSettings(
+                width: source.encodedWidth, height: source.encodedHeight, allowFrameReordering: false))
             videoInput.transform = source.transform
             videoInput.mediaTimeScale = source.videoTimeScale
             guard reader.canAdd(videoOutput), writer.canAdd(videoInput) else { throw RecordingMediaError.cannotWrite }
