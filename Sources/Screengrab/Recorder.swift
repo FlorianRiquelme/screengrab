@@ -50,17 +50,13 @@ final class Recorder: NSObject, SCStreamDelegate {
                       let screen = NSScreen.screen(for: display.displayID) else { throw RecorderError.noDisplay }
 
                 let config = SCStreamConfiguration()
-                let size: CGSize
-                switch options.target {
-                case .display:
-                    size = CGSize(width: display.width, height: display.height)
-                case .area(_, let rect):
-                    config.sourceRect = rect
-                    size = rect.size
-                }
+                let region = options.target.areaRect ?? CGRect(x: 0, y: 0, width: display.width, height: display.height)
                 let scale = screen.backingScaleFactor
-                config.width = Int(size.width * scale) & ~1
-                config.height = Int(size.height * scale) & ~1
+                config.width = Int(region.width * scale) & ~1
+                config.height = Int(region.height * scale) & ~1
+                // Crop the odd edge pixel so ScreenCaptureKit doesn't resample the entire frame.
+                config.sourceRect = CGRect(origin: region.origin, size: CGSize(
+                    width: CGFloat(config.width) / scale, height: CGFloat(config.height) / scale))
                 config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
                 config.showsCursor = true
                 config.capturesAudio = false
